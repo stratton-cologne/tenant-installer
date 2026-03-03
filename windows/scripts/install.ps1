@@ -543,7 +543,7 @@ function Find-CommandPath {
 function Find-PhpExecutable {
     $commandPath = Find-CommandPath -Name "php"
 
-    if (-not [string]::IsNullOrWhiteSpace($commandPath)) {
+    if (-not [string]::IsNullOrWhiteSpace($commandPath) -and (Test-Path -LiteralPath $commandPath -PathType Leaf)) {
         return $commandPath
     }
 
@@ -558,6 +558,17 @@ function Find-PhpExecutable {
         if (Test-Path -LiteralPath $candidate -PathType Leaf) {
             return $candidate
         }
+    }
+
+    $toolCandidates = Get-ChildItem -Path "C:\tools" -Directory -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -like "php*" } |
+        Sort-Object Name -Descending |
+        ForEach-Object { Join-Path $_.FullName "php.exe" } |
+        Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } |
+        Select-Object -First 1
+
+    if ($null -ne $toolCandidates) {
+        return [string]$toolCandidates
     }
 
     return ""
@@ -585,6 +596,17 @@ function Find-PhpCgiExecutable {
         if (Test-Path -LiteralPath $candidate -PathType Leaf) {
             return $candidate
         }
+    }
+
+    $toolCandidates = Get-ChildItem -Path "C:\tools" -Directory -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -like "php*" } |
+        Sort-Object Name -Descending |
+        ForEach-Object { Join-Path $_.FullName "php-cgi.exe" } |
+        Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } |
+        Select-Object -First 1
+
+    if ($null -ne $toolCandidates) {
+        return [string]$toolCandidates
     }
 
     return ""

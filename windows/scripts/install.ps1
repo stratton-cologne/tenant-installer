@@ -306,11 +306,13 @@ function Test-CommandAvailable {
 }
 
 function Get-PhpMinorVersion {
-    if (-not (Test-CommandAvailable -Name "php")) {
+    $phpExecutable = Find-PhpExecutable
+
+    if ([string]::IsNullOrWhiteSpace($phpExecutable)) {
         return ""
     }
 
-    return (& php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;')
+    return (& $phpExecutable -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;')
 }
 
 function Install-WithWinget {

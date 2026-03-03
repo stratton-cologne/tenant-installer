@@ -312,7 +312,87 @@ function Get-PhpMinorVersion {
         return ""
     }
 
-    return (& $phpExecutable -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;')
+    $versionLine = & $phpExecutable --version | Select-Object -First 1
+
+    if ($versionLine -match 'PHP\s+(?<major>\d+)\.(?<minor>\d+)') {
+        return "$($Matches.major).$($Matches.minor)"
+    }
+
+    return ""
+}
+
+function Get-PhpIniPath {
+    param(
+        [string]$PhpExecutable
+    )
+
+    if ([string]::IsNullOrWhiteSpace($PhpExecutable)) {
+        return ""
+    }
+
+    $iniOutput = & $PhpExecutable --ini 2>$null
+
+    foreach ($line in $iniOutput) {
+        if ($line -match 'Loaded Configuration File:\s+(?<path>.+)$') {
+            $candidate = $Matches.path.Trim()
+
+            if ($candidate -ne "(none)" -and (Test-Path -LiteralPath $candidate -PathType Leaf)) {
+                return $candidate
+            }
+        }
+    }
+
+    $phpDir = Split-Path -Parent $PhpExecutable
+    $directPhpIni = Join-Path $phpDir "php.ini"
+
+    if (Test-Path -LiteralPath $directPhpIni -PathType Leaf) {
+        return $directPhpIni
+    }
+
+    foreach ($templateName in @("php.ini-production", "php.ini-development")) {
+        $templatePath = Join-Path $phpDir $templateName
+
+        if (Test-Path -LiteralPath $templatePath -PathType Leaf) {
+            if (-not $DryRun) {
+                Copy-Item -LiteralPath $templatePath -Destination $directPhpIni -Force
+            }
+
+            return $directPhpIni
+        }
+    }
+
+    return $directPhpIni
+}
+
+function Convert-ToVersion {
+    param(
+        [string]$Value
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Value)) {
+        return $null
+    }
+
+    if ($Value -match '^(?<major>\d+)\.(?<minor>\d+)(?:\.(?<patch>\d+))?$') {
+        $patch = if ([string]::IsNullOrWhiteSpace($Matches.patch)) { "0" } else { $Matches.patch }
+        return [version]"$($Matches.major).$($Matches.minor).$patch"
+    }
+
+    return $null
+}
+
+function Test-MinimumPhpVersion {
+    param(
+        [string]$VersionText
+    )
+
+    $versionValue = Convert-ToVersion -Value $VersionText
+
+    if ($null -eq $versionValue) {
+        return $false
+    }
+
+    return $versionValue -ge [version]"8.2.0"
 }
 
 function Install-WithWinget {
@@ -341,7 +421,7 @@ function Install-WithWinget {
     )
 
     Write-Status "INFO" "Installiere $DisplayName ueber winget"
-    & winget @arguments
+    & winget @arguments | Out-Host
 
     if ($LASTEXITCODE -ne 0) {
         throw "$DisplayName konnte nicht ueber winget installiert werden (Exit-Code $LASTEXITCODE)."
@@ -351,7 +431,9 @@ function Install-WithWinget {
 function Install-WithChocolatey {
     param(
         [string]$PackageName,
-        [string]$DisplayName
+        [string]$DisplayName,
+        [string]$PackageVersion = "",
+        [switch]$IgnoreDependencies
     )
 
     if (-not (Test-CommandAvailable -Name "choco")) {
@@ -370,8 +452,16 @@ function Install-WithChocolatey {
         "--no-progress"
     )
 
+    if (-not [string]::IsNullOrWhiteSpace($PackageVersion)) {
+        $arguments += @("--version", $PackageVersion)
+    }
+
+    if ($IgnoreDependencies) {
+        $arguments += "--ignore-dependencies"
+    }
+
     Write-Status "INFO" "Installiere $DisplayName ueber Chocolatey"
-    & choco @arguments
+    & choco @arguments | Out-Host
 
     if ($LASTEXITCODE -ne 0) {
         throw "$DisplayName konnte nicht ueber Chocolatey installiert werden (Exit-Code $LASTEXITCODE)."
@@ -383,20 +473,37 @@ function Install-Package {
         [string]$WingetId,
         [string]$ChocolateyName,
         [string]$DisplayName,
+        [string]$ChocolateyVersion = "",
         [switch]$RequireWinget
     )
 
     if (Test-CommandAvailable -Name "winget") {
-        Install-WithWinget -PackageId $WingetId -DisplayName $DisplayName
-        return
+        try {
+            Install-WithWinget -PackageId $WingetId -DisplayName $DisplayName
+            return
+        }
+        catch {
+            if (Test-CommandAvailable -Name "choco") {
+                Write-Status "WARN" "$DisplayName konnte nicht ueber winget installiert werden. Fallback auf Chocolatey wird versucht."
+                Install-WithChocolatey -PackageName $ChocolateyName -DisplayName $DisplayName -PackageVersion $ChocolateyVersion
+                return
+            }
+
+            throw
+        }
     }
 
     if ($RequireWinget) {
-        throw "$DisplayName erfordert aktuell winget, weil dafuer eine feste Paketversion benoetigt wird."
+        if (Test-CommandAvailable -Name "choco") {
+            Install-WithChocolatey -PackageName $ChocolateyName -DisplayName $DisplayName -PackageVersion $ChocolateyVersion
+            return
+        }
+
+        throw "$DisplayName erfordert aktuell einen automatischen Paketmanager. Weder winget noch Chocolatey sind geeignet verfuegbar."
     }
 
     if (Test-CommandAvailable -Name "choco") {
-        Install-WithChocolatey -PackageName $ChocolateyName -DisplayName $DisplayName
+        Install-WithChocolatey -PackageName $ChocolateyName -DisplayName $DisplayName -PackageVersion $ChocolateyVersion
         return
     }
 
@@ -490,6 +597,45 @@ function Find-MariaDbClientExecutable {
     return ""
 }
 
+function Find-MariaDbBaseDirectory {
+    $knownMatches = Get-ChildItem -Path "C:\Program Files\MariaDB*" -Directory -ErrorAction SilentlyContinue |
+        Sort-Object LastWriteTimeUtc -Descending |
+        Select-Object -First 1
+
+    if ($null -ne $knownMatches) {
+        return [string]$knownMatches.FullName
+    }
+
+    return ""
+}
+
+function Find-MariaDbServerExecutable {
+    $baseDirectory = Find-MariaDbBaseDirectory
+
+    if ([string]::IsNullOrWhiteSpace($baseDirectory)) {
+        return ""
+    }
+
+    $candidate = Join-Path $baseDirectory "bin\mysqld.exe"
+
+    if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+        return $candidate
+    }
+
+    return ""
+}
+
+function Get-MariaDbService {
+    $service = Get-Service | Where-Object {
+        $_.Name -like "*MariaDB*" -or
+        $_.DisplayName -like "*MariaDB*" -or
+        $_.Name -like "*MySQL*" -or
+        $_.DisplayName -like "*MySQL*"
+    } | Select-Object -First 1
+
+    return $service
+}
+
 function Find-ComposerExecutable {
     $commandPath = Find-CommandPath -Name "composer"
 
@@ -536,7 +682,7 @@ function Find-NssmExecutable {
 function Find-NginxExecutable {
     $commandPath = Find-CommandPath -Name "nginx"
 
-    if (-not [string]::IsNullOrWhiteSpace($commandPath)) {
+    if (-not [string]::IsNullOrWhiteSpace($commandPath) -and (Test-Path -LiteralPath $commandPath -PathType Leaf)) {
         return $commandPath
     }
 
@@ -549,6 +695,28 @@ function Find-NginxExecutable {
     foreach ($candidate in $knownPaths) {
         if (Test-Path -LiteralPath $candidate -PathType Leaf) {
             return $candidate
+        }
+    }
+
+    $packageRoots = @(
+        (Join-Path $env:LOCALAPPDATA "Microsoft\WinGet\Packages"),
+        (Join-Path $env:LOCALAPPDATA "Microsoft\WindowsApps")
+    )
+
+    foreach ($packageRoot in $packageRoots) {
+        if (-not (Test-Path -LiteralPath $packageRoot -PathType Container)) {
+            continue
+        }
+
+        $packageCandidate = Get-ChildItem -LiteralPath $packageRoot -Directory -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -like "nginxinc.nginx*" -or $_.Name -like "freenginx.nginx*" } |
+            ForEach-Object {
+                Get-ChildItem -LiteralPath $_.FullName -Recurse -Filter "nginx.exe" -ErrorAction SilentlyContinue
+            } |
+            Select-Object -First 1
+
+        if ($null -ne $packageCandidate) {
+            return $packageCandidate.FullName
         }
     }
 
@@ -568,21 +736,36 @@ function Get-NginxRoot {
 }
 
 function Ensure-Php82Installed {
-    $installedVersion = Get-PhpMinorVersion
+    param(
+        [pscustomobject]$Context
+    )
 
-    if ($installedVersion -eq "8.2") {
-        Write-Status "PASS" "PHP 8.2 ist bereits vorhanden"
-        return (Find-PhpExecutable)
+    $installedVersion = Get-PhpMinorVersion
+    $constraint = Get-BackendPhpConstraint -Context $Context
+
+    if (-not [string]::IsNullOrWhiteSpace($installedVersion) -and (Test-MinimumPhpVersion -VersionText $installedVersion)) {
+        if (Test-PhpVersionAgainstConstraint -VersionText $installedVersion -Constraint $constraint) {
+            if ([string]::IsNullOrWhiteSpace($constraint)) {
+                Write-Status "PASS" "PHP $installedVersion ist vorhanden (>= 8.2)"
+            }
+            else {
+                Write-Status "PASS" "PHP $installedVersion ist vorhanden und erfuellt die Backend-Anforderung '$constraint'"
+            }
+
+            return (Find-PhpExecutable)
+        }
+
+        throw "PHP $installedVersion ist zwar >= 8.2, erfuellt aber die Backend-Anforderung '$constraint' nicht. Bitte eine kompatible PHP-Version manuell installieren."
     }
 
     if (-not [string]::IsNullOrWhiteSpace($installedVersion)) {
-        Write-Status "WARN" "Gefundene PHP-Version $installedVersion wird durch PHP 8.2 ersetzt oder ergaenzt"
+        Write-Status "WARN" "Gefundene PHP-Version $installedVersion ist kleiner als 8.2 und wird aufgeruestet"
     }
     else {
-        Write-Status "INFO" "PHP 8.2 ist noch nicht vorhanden"
+        Write-Status "INFO" "Es ist noch keine geeignete PHP-Version (>= 8.2) vorhanden"
     }
 
-    Install-Package -WingetId "PHP.PHP.8.2" -ChocolateyName "php" -DisplayName "PHP 8.2" -RequireWinget
+    Install-Package -WingetId "PHP.PHP.8.2" -ChocolateyName "php" -DisplayName "PHP 8.2" -ChocolateyVersion "8.2.30" -RequireWinget
 
     if ($DryRun) {
         return ""
@@ -590,11 +773,21 @@ function Ensure-Php82Installed {
 
     $resolvedVersion = Get-PhpMinorVersion
 
-    if ($resolvedVersion -ne "8.2") {
-        throw "PHP 8.2 wurde nicht erfolgreich bereitgestellt. Aktuell erkannt: $resolvedVersion"
+    if (-not (Test-MinimumPhpVersion -VersionText $resolvedVersion)) {
+        throw "Es konnte keine geeignete PHP-Version >= 8.2 bereitgestellt werden. Aktuell erkannt: $resolvedVersion"
     }
 
-    Write-Status "PASS" "PHP 8.2 ist verfuegbar"
+    if (-not (Test-PhpVersionAgainstConstraint -VersionText $resolvedVersion -Constraint $constraint)) {
+        throw "Die bereitgestellte PHP-Version $resolvedVersion erfuellt die Backend-Anforderung '$constraint' nicht. Bitte manuell eine kompatible Version installieren."
+    }
+
+    if ([string]::IsNullOrWhiteSpace($constraint)) {
+        Write-Status "PASS" "PHP $resolvedVersion ist verfuegbar (>= 8.2)"
+    }
+    else {
+        Write-Status "PASS" "PHP $resolvedVersion ist verfuegbar und erfuellt '$constraint'"
+    }
+
     return (Find-PhpExecutable)
 }
 
@@ -607,7 +800,7 @@ function Ensure-ComposerInstalled {
     }
 
     if (Test-CommandAvailable -Name "choco") {
-        Install-WithChocolatey -PackageName "composer" -DisplayName "Composer"
+        Install-WithChocolatey -PackageName "composer" -DisplayName "Composer" -IgnoreDependencies
     }
     elseif (Test-CommandAvailable -Name "winget") {
         throw "Composer ist nicht vorhanden. Fuer Composer ist aktuell nur Chocolatey als automatischer Installationspfad hinterlegt."
@@ -628,6 +821,91 @@ function Ensure-ComposerInstalled {
 
     Write-Status "PASS" "Composer ist verfuegbar: $composerExecutable"
     return $composerExecutable
+}
+
+function Enable-PhpIniExtension {
+    param(
+        [string[]]$Lines,
+        [string]$ExtensionName
+    )
+
+    $patterns = @(
+        "extension=$ExtensionName",
+        "extension=php_$ExtensionName.dll"
+    )
+
+    for ($index = 0; $index -lt $Lines.Count; $index++) {
+        $trimmed = $Lines[$index].Trim()
+
+        if ($trimmed -match '^[;#]\s*extension\s*=') {
+            foreach ($pattern in $patterns) {
+                if ($trimmed -match [regex]::Escape($pattern)) {
+                    $Lines[$index] = $pattern
+                    return $Lines
+                }
+            }
+        }
+
+        foreach ($pattern in $patterns) {
+            if ($trimmed -eq $pattern) {
+                return $Lines
+            }
+        }
+    }
+
+    return $Lines + $patterns[0]
+}
+
+function Ensure-PhpRuntimeConfiguration {
+    param(
+        [string]$PhpExecutable
+    )
+
+    if ([string]::IsNullOrWhiteSpace($PhpExecutable)) {
+        throw "PHP-Konfiguration kann nicht vorbereitet werden, weil php.exe nicht verfuegbar ist."
+    }
+
+    $phpIniPath = Get-PhpIniPath -PhpExecutable $PhpExecutable
+
+    if ([string]::IsNullOrWhiteSpace($phpIniPath)) {
+        throw "php.ini konnte nicht ermittelt werden."
+    }
+
+    $phpDir = Split-Path -Parent $PhpExecutable
+    $extensionDir = Join-Path $phpDir "ext"
+
+    if ($DryRun) {
+        Write-Status "INFO" "Dry-run: wuerde PHP-Konfiguration in $phpIniPath vorbereiten"
+        return
+    }
+
+    if (-not (Test-Path -LiteralPath $phpIniPath -PathType Leaf)) {
+        throw "php.ini wurde nicht gefunden und konnte nicht automatisch erzeugt werden: $phpIniPath"
+    }
+
+    $lines = @(Get-Content -LiteralPath $phpIniPath)
+    $extensionDirConfigured = $false
+
+    for ($index = 0; $index -lt $lines.Count; $index++) {
+        $trimmed = $lines[$index].Trim()
+
+        if ($trimmed -match '^[;#]?\s*extension_dir\s*=') {
+            $lines[$index] = "extension_dir = ""$extensionDir"""
+            $extensionDirConfigured = $true
+            break
+        }
+    }
+
+    if (-not $extensionDirConfigured) {
+        $lines += "extension_dir = ""$extensionDir"""
+    }
+
+    foreach ($extensionName in @("fileinfo", "mbstring", "openssl", "pdo_mysql", "mysqli")) {
+        $lines = Enable-PhpIniExtension -Lines $lines -ExtensionName $extensionName
+    }
+
+    Set-Content -LiteralPath $phpIniPath -Value $lines -Encoding UTF8
+    Write-Status "INFO" "PHP-Konfiguration vorbereitet: $phpIniPath"
 }
 
 function Ensure-NginxInstalled {
@@ -654,6 +932,67 @@ function Ensure-NginxInstalled {
     return $nginxExecutable
 }
 
+function Wait-ForTcpPort {
+    param(
+        [string]$HostName,
+        [int]$Port,
+        [int]$TimeoutSeconds = 20
+    )
+
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+
+    while ((Get-Date) -lt $deadline) {
+        $client = New-Object System.Net.Sockets.TcpClient
+
+        try {
+            $asyncResult = $client.BeginConnect($HostName, $Port, $null, $null)
+
+            if ($asyncResult.AsyncWaitHandle.WaitOne(1000)) {
+                $client.EndConnect($asyncResult)
+                return $true
+            }
+        }
+        catch {
+        }
+        finally {
+            $client.Dispose()
+        }
+
+        Start-Sleep -Seconds 1
+    }
+
+    return $false
+}
+
+function Register-MariaDbService {
+    $mysqldExecutable = Find-MariaDbServerExecutable
+
+    if ([string]::IsNullOrWhiteSpace($mysqldExecutable)) {
+        throw "mysqld.exe wurde nicht gefunden. MariaDB-Dienst kann nicht registriert werden."
+    }
+
+    $baseDirectory = Split-Path -Parent (Split-Path -Parent $mysqldExecutable)
+    $defaultsFile = Join-Path $baseDirectory "data\my.ini"
+    $serviceName = "MariaDB"
+
+    if ($DryRun) {
+        Write-Status "INFO" "Dry-run: wuerde MariaDB-Dienst ueber mysqld.exe registrieren"
+        return
+    }
+
+    $arguments = @("--install", $serviceName)
+
+    if (Test-Path -LiteralPath $defaultsFile -PathType Leaf) {
+        $arguments += "--defaults-file=$defaultsFile"
+    }
+
+    & $mysqldExecutable @arguments | Out-Host
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "MariaDB-Dienst konnte nicht ueber mysqld.exe registriert werden (Exit-Code $LASTEXITCODE)."
+    }
+}
+
 function Ensure-MariaDbInstalled {
     param(
         [pscustomobject]$Context
@@ -664,10 +1003,18 @@ function Ensure-MariaDbInstalled {
         return
     }
 
-    $service = Get-Service -Name "MariaDB" -ErrorAction SilentlyContinue
+    $service = Get-MariaDbService
 
     if ($null -ne $service) {
         Write-Status "PASS" "MariaDB-Service ist bereits vorhanden"
+        if ($service.Status -ne "Running" -and -not $DryRun) {
+            Start-Service -Name $service.Name
+        }
+
+        if (-not (Wait-ForTcpPort -HostName "127.0.0.1" -Port 3306 -TimeoutSeconds 20)) {
+            throw "MariaDB-Dienst ist vorhanden, aber Port 3306 wird nicht geoeffnet."
+        }
+
         return
     }
 
@@ -677,15 +1024,24 @@ function Ensure-MariaDbInstalled {
         return
     }
 
-    $service = Get-Service -Name "MariaDB" -ErrorAction SilentlyContinue
+    $service = Get-MariaDbService
 
     if ($null -eq $service) {
-        Write-Status "WARN" "MariaDB wurde installiert, aber der Dienstname 'MariaDB' wurde noch nicht gefunden."
-        return
+        Write-Status "WARN" "MariaDB wurde installiert, aber kein Dienst gefunden. Dienst wird jetzt registriert."
+        Register-MariaDbService
+        $service = Get-MariaDbService
+    }
+
+    if ($null -eq $service) {
+        throw "MariaDB wurde installiert, aber es konnte kein Windows-Dienst gefunden oder registriert werden."
     }
 
     if ($service.Status -ne "Running") {
         Start-Service -Name $service.Name
+    }
+
+    if (-not (Wait-ForTcpPort -HostName "127.0.0.1" -Port 3306 -TimeoutSeconds 20)) {
+        throw "MariaDB-Dienst wurde gestartet, aber Port 3306 ist nicht erreichbar."
     }
 
     Write-Status "PASS" "MariaDB ist verfuegbar"
@@ -794,6 +1150,146 @@ function Get-ApplicationUrl {
     return "${scheme}://$($Context.PrimaryDomain)"
 }
 
+function Get-BackendPhpConstraint {
+    param(
+        [pscustomobject]$Context
+    )
+
+    if ($DryRun) {
+        return ""
+    }
+
+    $appRoot = Get-ApplicationRoot -BackendTarget (Join-Path $Context.InstallRoot "backend")
+    $composerManifest = Join-Path $appRoot "composer.json"
+
+    if (-not (Test-Path -LiteralPath $composerManifest -PathType Leaf)) {
+        return ""
+    }
+
+    try {
+        $composer = Get-Content -LiteralPath $composerManifest -Raw | ConvertFrom-Json
+        $requireNode = $composer.PSObject.Properties["require"]
+
+        if ($null -eq $requireNode -or $null -eq $requireNode.Value) {
+            return ""
+        }
+
+        $phpNode = $requireNode.Value.PSObject.Properties["php"]
+
+        if ($null -eq $phpNode -or $null -eq $phpNode.Value) {
+            return ""
+        }
+
+        return [string]$phpNode.Value
+    }
+    catch {
+        Write-Status "WARN" "composer.json konnte nicht fuer die PHP-Anforderung gelesen werden."
+        return ""
+    }
+}
+
+function Test-PhpConstraintToken {
+    param(
+        [version]$VersionValue,
+        [string]$Token
+    )
+
+    $trimmed = $Token.Trim()
+
+    if ([string]::IsNullOrWhiteSpace($trimmed) -or $trimmed -eq "*") {
+        return $true
+    }
+
+    if ($trimmed -match '^\^(?<version>\d+\.\d+(?:\.\d+)?)$') {
+        $lower = Convert-ToVersion -Value $Matches.version
+        $parts = $Matches.version.Split('.')
+        $major = [int]$parts[0]
+        $upper = [version]"$($major + 1).0.0"
+        return ($VersionValue -ge $lower -and $VersionValue -lt $upper)
+    }
+
+    if ($trimmed -match '^~(?<version>\d+\.\d+(?:\.\d+)?)$') {
+        $lower = Convert-ToVersion -Value $Matches.version
+        $parts = $Matches.version.Split('.')
+        $major = [int]$parts[0]
+        $minor = [int]$parts[1]
+        $upper = [version]"$major.$($minor + 1).0"
+        return ($VersionValue -ge $lower -and $VersionValue -lt $upper)
+    }
+
+    if ($trimmed -match '^(?<operator>>=|<=|>|<|=)?\s*(?<version>\d+\.\d+(?:\.\d+)?)$') {
+        $operator = $Matches.operator
+        $target = Convert-ToVersion -Value $Matches.version
+
+        switch ($operator) {
+            ">=" { return $VersionValue -ge $target }
+            "<=" { return $VersionValue -le $target }
+            ">" { return $VersionValue -gt $target }
+            "<" { return $VersionValue -lt $target }
+            "=" { return $VersionValue -eq $target }
+            default {
+                $parts = $Matches.version.Split('.')
+                if ($parts.Length -eq 2) {
+                    $upper = [version]"$($parts[0]).$([int]$parts[1] + 1).0"
+                    return ($VersionValue -ge $target -and $VersionValue -lt $upper)
+                }
+
+                return $VersionValue -eq $target
+            }
+        }
+    }
+
+    return $false
+}
+
+function Test-PhpConstraintGroup {
+    param(
+        [version]$VersionValue,
+        [string]$ConstraintGroup
+    )
+
+    $tokens = $ConstraintGroup -split '\s*,\s*|\s+'
+
+    foreach ($token in $tokens) {
+        if ([string]::IsNullOrWhiteSpace($token)) {
+            continue
+        }
+
+        if (-not (Test-PhpConstraintToken -VersionValue $VersionValue -Token $token)) {
+            return $false
+        }
+    }
+
+    return $true
+}
+
+function Test-PhpVersionAgainstConstraint {
+    param(
+        [string]$VersionText,
+        [string]$Constraint
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Constraint)) {
+        return $true
+    }
+
+    $versionValue = Convert-ToVersion -Value $VersionText
+
+    if ($null -eq $versionValue) {
+        return $false
+    }
+
+    $groups = $Constraint -split '\|\|'
+
+    foreach ($group in $groups) {
+        if (Test-PhpConstraintGroup -VersionValue $versionValue -ConstraintGroup $group) {
+            return $true
+        }
+    }
+
+    return $false
+}
+
 function Write-EnvironmentFile {
     param(
         [pscustomobject]$Context
@@ -895,7 +1391,6 @@ function Invoke-ComposerInstall {
     $arguments = @(
         "install",
         "--no-interaction",
-        "--no-dev",
         "--prefer-dist",
         "--optimize-autoloader"
     )
@@ -1096,12 +1591,13 @@ function Invoke-MariaDbStatement {
 
     $arguments = @(
         "-u", "root",
+        "-h", "127.0.0.1",
         "--protocol=TCP",
         "--execute", $Sql
     )
 
     if (-not [string]::IsNullOrWhiteSpace($env:MARIADB_ROOT_PASSWORD)) {
-        $arguments = @("-u", "root", "-p$($env:MARIADB_ROOT_PASSWORD)", "--protocol=TCP", "--execute", $Sql)
+        $arguments = @("-u", "root", "-h", "127.0.0.1", "-p$($env:MARIADB_ROOT_PASSWORD)", "--protocol=TCP", "--execute", $Sql)
     }
 
     & $ClientExecutable @arguments | Out-Null
@@ -1149,6 +1645,53 @@ function Ensure-MariaDbProvisioning {
     }
 
     Write-Status "INFO" "MariaDB-Datenbank und Benutzer wurden angelegt"
+}
+
+function Test-DatabaseConnectivity {
+    param(
+        [pscustomobject]$Context
+    )
+
+    $hostName = $Context.DatabaseHost
+
+    if ($Context.UseLocalDatabase) {
+        $hostName = "127.0.0.1"
+    }
+
+    $port = 0
+
+    if (-not [int]::TryParse([string]$Context.DatabasePort, [ref]$port)) {
+        throw "DatabasePort ist keine gueltige Portnummer: $($Context.DatabasePort)"
+    }
+
+    if ($DryRun) {
+        Write-Status "INFO" "Dry-run: wuerde Datenbank-Verbindung zu ${hostName}:$port pruefen"
+        return
+    }
+
+    $client = New-Object System.Net.Sockets.TcpClient
+
+    try {
+        $asyncResult = $client.BeginConnect($hostName, $port, $null, $null)
+        $connected = $asyncResult.AsyncWaitHandle.WaitOne(5000)
+
+        if (-not $connected) {
+            throw "Zeitueberschreitung"
+        }
+
+        $client.EndConnect($asyncResult)
+        Write-Status "INFO" "Datenbank-Verbindung erreichbar: ${hostName}:$port"
+    }
+    catch {
+        if ($Context.UseLocalDatabase) {
+            throw "Die lokal vorgesehene MariaDB ist auf ${hostName}:$port nicht erreichbar. Bitte lokale Datenbankinstallation pruefen."
+        }
+
+        throw "Die konfigurierte Remote-Datenbank ist auf ${hostName}:$port nicht erreichbar. Bitte Host, Port und Firewall pruefen."
+    }
+    finally {
+        $client.Dispose()
+    }
 }
 
 function Set-NginxConfiguration {
@@ -1310,18 +1853,20 @@ Expand-ReleaseArchive -ArchivePath $frontendAsset -TargetDir $expandedFrontendDi
 Deploy-Application -Context $context -ExpandedBackendDir $expandedBackendDir -ExpandedFrontendDir $expandedFrontendDir
 Write-EnvironmentFile -Context $context
 
-$phpExecutable = Ensure-Php82Installed
+$phpExecutable = Ensure-Php82Installed -Context $context
 if (-not [string]::IsNullOrWhiteSpace($phpExecutable)) {
     Write-Status "INFO" "PHP CLI erkannt: $phpExecutable"
 }
+Ensure-PhpRuntimeConfiguration -PhpExecutable $phpExecutable
 $composerExecutable = Ensure-ComposerInstalled
 Invoke-ComposerInstall -Context $context -ComposerExecutable $composerExecutable
+Ensure-MariaDbInstalled -Context $context
+Ensure-MariaDbProvisioning -Context $context
+Test-DatabaseConnectivity -Context $context
 Invoke-LaravelBootstrap -Context $context -PhpExecutable $phpExecutable
 Ensure-PhpFastCgiRunner -Context $context
 $nginxExecutable = Ensure-NginxInstalled
 Set-NginxConfiguration -Context $context -NginxExecutable $nginxExecutable
-Ensure-MariaDbInstalled -Context $context
-Ensure-MariaDbProvisioning -Context $context
 
 Write-InstallSummary -Context $context -TargetOutputRoot $OutputRoot -BackendReleaseDir $backendReleaseDir -FrontendReleaseDir $frontendReleaseDir
 

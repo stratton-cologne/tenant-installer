@@ -77,14 +77,32 @@ function Test-Php82 {
         return
     }
 
-    $version = (& php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;')
+    $versionLine = & $php.Source --version | Select-Object -First 1
+    $version = ""
+
+    if ($versionLine -match 'PHP\s+(?<major>\d+)\.(?<minor>\d+)') {
+        $version = "$($Matches.major).$($Matches.minor)"
+    }
+
+    if ([string]::IsNullOrWhiteSpace($version)) {
+        Write-Status "WARN" "PHP ist vorhanden, aber die Version konnte nicht sicher ermittelt werden."
+        return
+    }
+
+    $versionValue = [version]("$version.0")
+    $minimumValue = [version]"8.2.0"
+
+    if ($versionValue -lt $minimumValue) {
+        Write-Status "WARN" "PHP erkannt, aber zu alt: $version. Es wird mindestens PHP 8.2 benoetigt."
+        return
+    }
 
     if ($version -eq "8.2") {
         Write-Status "PASS" "PHP 8.2 erkannt"
         return
     }
 
-    Write-Status "WARN" "PHP erkannt, aber falsche Version: $version. Upgrade oder Neuinstallation von PHP 8.2 erforderlich."
+    Write-Status "PASS" "PHP $version erkannt (>= 8.2). Die finale Kompatibilitaet wird spaeter gegen das Backend-Release geprueft."
 }
 
 function Test-NginxAvailability {

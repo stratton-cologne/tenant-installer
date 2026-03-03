@@ -4,7 +4,7 @@
   "UseSsl": false,
   "AdminEmail": "admin@example.test",
   "AdminPassword": "TestPassword123!",
-  "UseLocalDatabase": false,
+  "UseLocalDatabase": true,
   "DatabaseHost": "127.0.0.1",
   "DatabasePort": "3306",
   "DatabaseName": "tenant_platform",

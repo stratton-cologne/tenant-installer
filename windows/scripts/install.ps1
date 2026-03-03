@@ -267,6 +267,22 @@ function Copy-DirectoryContents {
     Copy-Item -Path (Join-Path $SourceDir "*") -Destination $TargetDir -Recurse -Force
 }
 
+function Write-FileUtf8NoBom {
+    param(
+        [string]$Path,
+        [string]$Content
+    )
+
+    $directoryPath = Split-Path -Parent $Path
+
+    if (-not [string]::IsNullOrWhiteSpace($directoryPath)) {
+        New-Item -ItemType Directory -Force -Path $directoryPath | Out-Null
+    }
+
+    $encoding = New-Object System.Text.UTF8Encoding($false)
+    [System.IO.File]::WriteAllText($Path, $Content, $encoding)
+}
+
 function Expand-ReleaseArchive {
     param(
         [string]$ArchivePath,
@@ -1441,6 +1457,39 @@ function Invoke-ArtisanCommand {
     }
 }
 
+function Ensure-LaravelWritablePaths {
+    param(
+        [pscustomobject]$Context
+    )
+
+    $appRoot = Get-ApplicationRoot -BackendTarget (Join-Path $Context.InstallRoot "backend")
+    $requiredDirectories = @(
+        (Join-Path $appRoot "bootstrap\cache"),
+        (Join-Path $appRoot "storage\app"),
+        (Join-Path $appRoot "storage\app\public"),
+        (Join-Path $appRoot "storage\framework"),
+        (Join-Path $appRoot "storage\framework\cache"),
+        (Join-Path $appRoot "storage\framework\cache\data"),
+        (Join-Path $appRoot "storage\framework\sessions"),
+        (Join-Path $appRoot "storage\framework\views"),
+        (Join-Path $appRoot "storage\logs")
+    )
+
+    if ($DryRun) {
+        foreach ($directoryPath in $requiredDirectories) {
+            Write-Status "INFO" "Dry-run: wuerde Laravel-Verzeichnis sicherstellen: $directoryPath"
+        }
+
+        return
+    }
+
+    foreach ($directoryPath in $requiredDirectories) {
+        New-Item -ItemType Directory -Force -Path $directoryPath | Out-Null
+    }
+
+    Write-Status "INFO" "Laravel-Verzeichnisse vorbereitet"
+}
+
 function Invoke-LaravelBootstrap {
     param(
         [pscustomobject]$Context,
@@ -1460,6 +1509,7 @@ function Invoke-LaravelBootstrap {
         return
     }
 
+    Ensure-LaravelWritablePaths -Context $Context
     Invoke-ArtisanCommand -PhpExecutable $PhpExecutable -AppRoot $appRoot -Arguments @("key:generate", "--force") -Description "php artisan key:generate"
     Invoke-ArtisanCommand -PhpExecutable $PhpExecutable -AppRoot $appRoot -Arguments @("config:clear") -Description "php artisan config:clear"
     Invoke-ArtisanCommand -PhpExecutable $PhpExecutable -AppRoot $appRoot -Arguments @("cache:clear") -Description "php artisan cache:clear"
@@ -1739,14 +1789,14 @@ $sslNote        root   $publicRoot;
         index  index.php index.html;
 
         location / {
-            try_files \$uri \$uri/ /index.php?\$query_string;
+            try_files `$uri `$uri/ /index.php?`$query_string;
         }
 
         location ~ \.php$ {
             fastcgi_pass   127.0.0.1:9000;
             fastcgi_index  index.php;
             include        fastcgi.conf;
-            fastcgi_param  SCRIPT_FILENAME  \$document_root\$fastcgi_script_name;
+            fastcgi_param  SCRIPT_FILENAME  `$document_root`$fastcgi_script_name;
         }
     }
 }
@@ -1757,13 +1807,80 @@ $sslNote        root   $publicRoot;
         return
     }
 
-    New-Item -ItemType Directory -Force -Path (Split-Path -Parent $confPath) | Out-Null
-    Set-Content -LiteralPath $confPath -Value $configContent -Encoding UTF8
+    Write-FileUtf8NoBom -Path $confPath -Content $configContent
     Write-Status "INFO" "Nginx-Konfiguration geschrieben: $confPath"
 
     if ($Context.UseSsl) {
         Write-Status "WARN" "SSL ist angefordert, aber Zertifikat und 443-Listener sind noch nicht automatisiert konfiguriert."
     }
+}
+
+function Start-OrReloadNginx {
+    param(
+        [string]$NginxExecutable
+    )
+
+    if ([string]::IsNullOrWhiteSpace($NginxExecutable)) {
+        if ($DryRun) {
+            Write-Status "INFO" "Dry-run: wuerde Nginx starten oder neu laden"
+            return
+        }
+
+        throw "Nginx kann nicht gestartet werden, weil nginx.exe nicht gefunden wurde."
+    }
+
+    $nginxRoot = Get-NginxRoot -NginxExecutable $NginxExecutable
+    $nginxArguments = @("-p", "$nginxRoot\", "-c", "conf/nginx.conf")
+
+    if ($DryRun) {
+        Write-Status "INFO" "Dry-run: wuerde Nginx mit $NginxExecutable starten oder neu laden"
+        return
+    }
+
+    Push-Location -LiteralPath $nginxRoot
+    try {
+        & $NginxExecutable @nginxArguments -t | Out-Host
+
+        if ($LASTEXITCODE -ne 0) {
+            throw "Nginx-Konfigurationstest ist fehlgeschlagen (Exit-Code $LASTEXITCODE)."
+        }
+    }
+    finally {
+        Pop-Location
+    }
+
+    $running = Get-Process -Name "nginx" -ErrorAction SilentlyContinue | Select-Object -First 1
+
+    if ($null -ne $running) {
+        Push-Location -LiteralPath $nginxRoot
+        try {
+            & $NginxExecutable @nginxArguments -s reload | Out-Host
+
+            if ($LASTEXITCODE -ne 0) {
+                throw "Nginx konnte nicht neu geladen werden (Exit-Code $LASTEXITCODE)."
+            }
+        }
+        finally {
+            Pop-Location
+        }
+
+        Write-Status "INFO" "Nginx neu geladen"
+        return
+    }
+
+    Push-Location -LiteralPath $nginxRoot
+    try {
+        Start-Process -FilePath $NginxExecutable -ArgumentList $nginxArguments -WorkingDirectory $nginxRoot -WindowStyle Hidden
+    }
+    finally {
+        Pop-Location
+    }
+
+    if (-not (Wait-ForTcpPort -HostName "127.0.0.1" -Port 80 -TimeoutSeconds 10)) {
+        throw "Nginx wurde gestartet, aber Port 80 ist nicht erreichbar. Bitte pruefe, ob Port 80 bereits belegt ist oder ob nginx den Port binden darf."
+    }
+
+    Write-Status "INFO" "Nginx gestartet"
 }
 
 function Write-InstallSummary {
@@ -1867,6 +1984,7 @@ Invoke-LaravelBootstrap -Context $context -PhpExecutable $phpExecutable
 Ensure-PhpFastCgiRunner -Context $context
 $nginxExecutable = Ensure-NginxInstalled
 Set-NginxConfiguration -Context $context -NginxExecutable $nginxExecutable
+Start-OrReloadNginx -NginxExecutable $nginxExecutable
 
 Write-InstallSummary -Context $context -TargetOutputRoot $OutputRoot -BackendReleaseDir $backendReleaseDir -FrontendReleaseDir $frontendReleaseDir
 

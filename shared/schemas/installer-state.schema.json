@@ -1,0 +1,195 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://stratton.cologne/schemas/tenant-installer/installer-state.schema.json",
+  "title": "Tenant Installer State",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "installation_id",
+    "platform",
+    "app_root",
+    "state_file",
+    "deployed",
+    "services",
+    "timestamps"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0.0"
+    },
+    "installation_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "platform": {
+      "type": "string",
+      "enum": [
+        "ubuntu",
+        "windows"
+      ]
+    },
+    "app_root": {
+      "type": "string",
+      "minLength": 1
+    },
+    "state_file": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "encrypted"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "encrypted": {
+          "type": "boolean",
+          "const": true
+        }
+      }
+    },
+    "deployed": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "backend_version",
+        "frontend_version"
+      ],
+      "properties": {
+        "backend_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "frontend_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "backend_artifact": {
+          "type": "string"
+        },
+        "frontend_artifact": {
+          "type": "string"
+        },
+        "backend_release_dir": {
+          "type": "string"
+        },
+        "frontend_release_dir": {
+          "type": "string"
+        },
+        "current_release_dir": {
+          "type": "string"
+        },
+        "frontend_public_dir": {
+          "type": "string"
+        },
+        "bootstrap_status": {
+          "type": "string"
+        },
+        "modules": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "version",
+              "enabled"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "version": {
+                "type": "string"
+              },
+              "enabled": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      }
+    },
+    "services": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "web_server",
+        "scheduler",
+        "queue_worker"
+      ],
+      "properties": {
+        "web_server": {
+          "type": "string",
+          "enum": [
+            "nginx",
+            "apache"
+          ]
+        },
+        "scheduler": {
+          "type": "string",
+          "minLength": 1
+        },
+        "queue_worker": {
+          "type": "string",
+          "minLength": 1
+        },
+        "runtime_config_dir": {
+          "type": "string"
+        }
+      }
+    },
+    "database": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "engine": {
+          "type": "string",
+          "enum": [
+            "mysql",
+            "mariadb"
+          ]
+        },
+        "host": {
+          "type": "string"
+        },
+        "port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        },
+        "name": {
+          "type": "string"
+        },
+        "managed_by_installer": {
+          "type": "boolean"
+        }
+      }
+    },
+    "timestamps": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "installed_at_utc"
+      ],
+      "properties": {
+        "installed_at_utc": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updated_at_utc": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "repaired_at_utc": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    }
+  }
+}

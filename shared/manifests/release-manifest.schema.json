@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://stratton.cologne/schemas/tenant-installer/release-manifest.schema.json",
+  "title": "Tenant Installer Release Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "component",
+    "version",
+    "release_channel",
+    "build_time_utc",
+    "artifact",
+    "compatibility"
+  ],
+  "properties": {
+    "component": {
+      "type": "string",
+      "enum": [
+        "tenant-backend",
+        "tenant-frontend",
+        "module-package",
+        "installer"
+      ]
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:\\+[0-9A-Za-z.-]+)?$"
+    },
+    "release_channel": {
+      "type": "string",
+      "enum": [
+        "stable"
+      ]
+    },
+    "build_time_utc": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "file_name",
+        "sha256"
+      ],
+      "properties": {
+        "file_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-fA-F0-9]{64}$"
+        },
+        "size_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "source": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "compatibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "recommended_backend": {
+          "type": "string"
+        },
+        "recommended_frontend": {
+          "type": "string"
+        },
+        "minimum_installer": {
+          "type": "string"
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "module": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "slug": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]+$"
+        }
+      }
+    }
+  }
+}

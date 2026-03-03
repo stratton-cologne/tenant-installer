@@ -1,0 +1,17 @@
+{
+  "version": "1.0.0",
+  "sources": {
+    "tenant-backend": {
+      "mode": "github-release",
+      "repository": "stratton-cologne/tenant-backend-releases",
+      "tag_prefix": "v",
+      "asset_base_url_example": "https://github.com/stratton-cologne/tenant-backend-releases/releases/download/v1.0.0"
+    },
+    "tenant-frontend": {
+      "mode": "github-release",
+      "repository": "stratton-cologne/tenant-frontend-releases",
+      "tag_prefix": "v",
+      "asset_base_url_example": "https://github.com/stratton-cologne/tenant-frontend-releases/releases/download/v1.0.0"
+    }
+  }
+}

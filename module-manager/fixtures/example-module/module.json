@@ -1,0 +1,12 @@
+{
+  "name": "Example Module",
+  "slug": "example-module",
+  "version": "1.0.0",
+  "description": "Minimal fixture package for tenant-installer module flow.",
+  "backend": {
+    "module_path": "backend"
+  },
+  "frontend": {
+    "public_path": "frontend"
+  }
+}

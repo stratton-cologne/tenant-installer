@@ -1,0 +1,19 @@
+{
+  "component": "tenant-frontend",
+  "version": "1.0.0",
+  "release_channel": "stable",
+  "build_time_utc": "2026-03-02T15:35:00Z",
+  "artifact": {
+    "file_name": "tenant-frontend-1.0.0.zip",
+    "sha256": "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
+    "size_bytes": 5242880,
+    "source": "git-release"
+  },
+  "compatibility": {
+    "recommended_backend": "1.0.x",
+    "minimum_installer": "1.0.0",
+    "notes": [
+      "Warn if backend major version differs."
+    ]
+  }
+}

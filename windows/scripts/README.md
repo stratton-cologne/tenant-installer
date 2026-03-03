@@ -18,6 +18,12 @@ Hier entsteht die PowerShell-Installationslogik.
 - Kopieren des Frontends in `public`
 - Erzeugen der Laufzeitkonfiguration
 
+## Aktueller Startpunkt
+
+- `preflight.ps1` als erster lauffaehiger Preflight-Skeleton
+- `fetch-releases.ps1` als erster Baustein fuer den Bezug der neuesten GitHub-Releases und deren Assets
+- `install.ps1` als Orchestrierungs-Skript fuer Preflight, Release-Bezug, Entpacken, Frontend-Deployment nach `public`, `.env`-Erzeugung, PHP-8.2-Pruefung/Installation, Composer-Install, Laravel-Bootstrap, PHP-FastCGI (Scheduled Task oder optional NSSM), Nginx-Basis-Setup und optionale MariaDB-Installation samt Provisionierung
+
 ## Warum Skripte hier sinnvoll sind
 
 - Systemkommandos und Installationen sind unter PowerShell direkter und robuster umsetzbar als im UI-Code.

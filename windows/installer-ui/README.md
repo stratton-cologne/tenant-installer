@@ -19,6 +19,13 @@ Der Wizard soll folgende Bereiche abfragen:
 - Validierung der Eingaben
 - Anbindung an PowerShell-Skripte
 
+## Aktueller Stand
+
+- WPF-Projekt `TenantInstaller.Ui.csproj` vorhanden
+- Formular fuer Basisdaten, Datenbank, SMTP, optionale Felder und PHP-Runtime-Modus
+- Validierung ueber `WizardState`
+- Start von `windows/scripts/install.ps1` inklusive JSON-Konfigurationsdatei und Live-Log
+
 ## Architekturgrenze
 
 Die UI soll keine Host-Installation direkt selbst ausfuehren.

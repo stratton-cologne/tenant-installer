@@ -1,0 +1,202 @@
+<Window x:Class="TenantInstaller.Ui.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Tenant Installer"
+        Width="960"
+        Height="820"
+        MinWidth="900"
+        MinHeight="760"
+        WindowStartupLocation="CenterScreen">
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Margin="0,0,0,16">
+            <TextBlock FontSize="28" FontWeight="SemiBold" Text="Tenant Installer" />
+            <TextBlock Margin="0,6,0,0"
+                       Foreground="#555"
+                       Text="Wizard fuer Basisdaten, Datenbank, SMTP, Deployment und den Start des Windows-Installationsskripts." />
+        </StackPanel>
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <GroupBox Header="Basisdaten" Margin="0,0,0,12" Padding="12">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="220" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0" Grid.Column="0" Margin="0,6,12,6" VerticalAlignment="Center" Text="Primary Domain" />
+                        <TextBox x:Name="PrimaryDomainTextBox" Grid.Row="0" Grid.Column="1" Margin="0,4,0,4" />
+
+                        <TextBlock Grid.Row="1" Grid.Column="0" Margin="0,6,12,6" VerticalAlignment="Center" Text="SSL aktiv" />
+                        <CheckBox x:Name="UseSslCheckBox" Grid.Row="1" Grid.Column="1" Margin="0,6,0,6" IsChecked="True" />
+
+                        <TextBlock Grid.Row="2" Grid.Column="0" Margin="0,6,12,6" VerticalAlignment="Center" Text="Admin Email" />
+                        <TextBox x:Name="AdminEmailTextBox" Grid.Row="2" Grid.Column="1" Margin="0,4,0,4" />
+
+                        <TextBlock Grid.Row="3" Grid.Column="0" Margin="0,6,12,6" VerticalAlignment="Center" Text="Admin Passwort" />
+                        <PasswordBox x:Name="AdminPasswordBox" Grid.Row="3" Grid.Column="1" Margin="0,4,0,4" />
+                    </Grid>
+                </GroupBox>
+
+                <GroupBox Header="Datenbank" Margin="0,0,0,12" Padding="12">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="220" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0" Grid.Column="0" Margin="0,6,12,6" VerticalAlignment="Center" Text="MariaDB lokal installieren" />
+                        <CheckBox x:Name="UseLocalDatabaseCheckBox" Grid.Row="0" Grid.Column="1" Margin="0,6,0,6" Checked="UseLocalDatabaseChanged" Unchecked="UseLocalDatabaseChanged" />
+
+                        <TextBlock Grid.Row="1" Grid.Column="0" Margin="0,6,12,6" VerticalAlignment="Center" Text="DB Host" />
+                        <TextBox x:Name="DatabaseHostTextBox" Grid.Row="1" Grid.Column="1" Margin="0,4,0,4" Text="127.0.0.1" />
+
+                        <TextBlock Grid.Row="2" Grid.Column="0" Margin="0,6,12,6" VerticalAlignment="Center" Text="DB Port" />
+                        <TextBox x:Name="DatabasePortTextBox" Grid.Row="2" Grid.Column="1" Margin="0,4,0,4" Text="3306" />
+
+                        <TextBlock Grid.Row="3" Grid.Column="0" Margin="0,6,12,6" VerticalAlignment="Center" Text="DB Name" />
+                        <TextBox x:Name="DatabaseNameTextBox" Grid.Row="3" Grid.Column="1" Margin="0,4,0,4" Text="tenant_platform" />
+
+                        <TextBlock Grid.Row="4" Grid.Column="0" Margin="0,6,12,6" VerticalAlignment="Center" Text="DB User" />
+                        <TextBox x:Name="DatabaseUserTextBox" Grid.Row="4" Grid.Column="1" Margin="0,4,0,4" Text="tenant_user" />
+
+                        <TextBlock Grid.Row="5" Grid.Column="0" Margin="0,6,12,6" VerticalAlignment="Center" Text="DB Passwort" />
+                        <PasswordBox x:Name="DatabasePasswordBox" Grid.Row="5" Grid.Column="1" Margin="0,4,0,4" />
+                    </Grid>
+                </GroupBox>
+
+                <GroupBox Header="SMTP" Margin="0,0,0,12" Padding="12">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="220" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0" Grid.Column="0" Margin="0,6,12,6" VerticalAlignment="Center" Text="SMTP aktivieren" />
+                        <CheckBox x:Name="EnableSmtpCheckBox" Grid.Row="0" Grid.Column="1" Margin="0,6,0,6" Checked="EnableSmtpChanged" Unchecked="EnableSmtpChanged" />
+
+                        <TextBlock Grid.Row="1" Grid.Column="0" Margin="0,6,12,6" VerticalAlignment="Center" Text="SMTP Host" />
+                        <TextBox x:Name="SmtpHostTextBox" Grid.Row="1" Grid.Column="1" Margin="0,4,0,4" IsEnabled="False" />
+
+                        <TextBlock Grid.Row="2" Grid.Column="0" Margin="0,6,12,6" VerticalAlignment="Center" Text="SMTP Port" />
+                        <TextBox x:Name="SmtpPortTextBox" Grid.Row="2" Grid.Column="1" Margin="0,4,0,4" Text="587" IsEnabled="False" />
+
+                        <TextBlock Grid.Row="3" Grid.Column="0" Margin="0,6,12,6" VerticalAlignment="Center" Text="SMTP User" />
+                        <TextBox x:Name="SmtpUserTextBox" Grid.Row="3" Grid.Column="1" Margin="0,4,0,4" IsEnabled="False" />
+
+                        <TextBlock Grid.Row="4" Grid.Column="0" Margin="0,6,12,6" VerticalAlignment="Center" Text="SMTP Passwort" />
+                        <PasswordBox x:Name="SmtpPasswordBox" Grid.Row="4" Grid.Column="1" Margin="0,4,0,4" IsEnabled="False" />
+
+                        <StackPanel Grid.Row="5" Grid.Column="1" Orientation="Horizontal" Margin="0,4,0,4">
+                            <ComboBox x:Name="SmtpEncryptionComboBox" Width="160" SelectedIndex="0" IsEnabled="False">
+                                <ComboBoxItem Content="tls" />
+                                <ComboBoxItem Content="ssl" />
+                                <ComboBoxItem Content="none" />
+                            </ComboBox>
+                            <TextBox x:Name="MailFromAddressTextBox" Width="260" Margin="12,0,0,0" IsEnabled="False" />
+                        </StackPanel>
+                    </Grid>
+                </GroupBox>
+
+                <GroupBox Header="Optionale Felder" Margin="0,0,0,12" Padding="12">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="220" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0" Grid.Column="0" Margin="0,6,12,6" VerticalAlignment="Center" Text="Tenant ID" />
+                        <TextBox x:Name="TenantIdTextBox" Grid.Row="0" Grid.Column="1" Margin="0,4,0,4" />
+
+                        <TextBlock Grid.Row="1" Grid.Column="0" Margin="0,6,12,6" VerticalAlignment="Center" Text="Lizenzkeys" />
+                        <TextBox x:Name="LicenseKeysTextBox" Grid.Row="1" Grid.Column="1" Margin="0,4,0,4" />
+                    </Grid>
+                </GroupBox>
+
+                <GroupBox Header="Laufzeit &amp; Start" Padding="12">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="220" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0" Grid.Column="0" Margin="0,6,12,6" VerticalAlignment="Center" Text="PHP Runtime Mode" />
+                        <ComboBox x:Name="PhpRuntimeModeComboBox" Grid.Row="0" Grid.Column="1" Margin="0,4,0,4" SelectedIndex="0">
+                            <ComboBoxItem Content="ScheduledTask" />
+                            <ComboBoxItem Content="Nssm" />
+                        </ComboBox>
+
+                        <TextBlock Grid.Row="1" Grid.Column="0" Margin="0,6,12,6" VerticalAlignment="Center" Text="GitHub Token (optional)" />
+                        <PasswordBox x:Name="GitHubTokenBox" Grid.Row="1" Grid.Column="1" Margin="0,4,0,4" />
+
+                        <TextBlock Grid.Row="2" Grid.Column="0" Margin="0,6,12,6" VerticalAlignment="Center" Text="Dry Run" />
+                        <CheckBox x:Name="DryRunCheckBox" Grid.Row="2" Grid.Column="1" Margin="0,6,0,6" />
+
+                        <StackPanel Grid.Row="3" Grid.Column="1" Orientation="Horizontal" Margin="0,12,0,0">
+                            <Button Width="190" Height="38" Click="PreviewConfigClicked" Content="Konfiguration pruefen" />
+                            <Button Width="190" Height="38" Margin="12,0,0,0" Click="StartInstallClicked" Content="Installation starten" />
+                        </StackPanel>
+                    </Grid>
+                </GroupBox>
+            </StackPanel>
+        </ScrollViewer>
+
+        <Grid Grid.Row="2" Margin="0,16,0,0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="120" />
+            </Grid.RowDefinitions>
+
+            <TextBlock x:Name="StatusTextBlock"
+                       Grid.Row="0"
+                       Margin="0,0,0,8"
+                       FontWeight="SemiBold"
+                       Text="Bereit." />
+
+            <TextBox x:Name="LogTextBox"
+                     Grid.Row="1"
+                     VerticalScrollBarVisibility="Auto"
+                     HorizontalScrollBarVisibility="Auto"
+                     IsReadOnly="True"
+                     TextWrapping="Wrap" />
+        </Grid>
+    </Grid>
+</Window>

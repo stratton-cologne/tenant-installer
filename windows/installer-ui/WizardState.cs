@@ -24,4 +24,58 @@ public sealed class WizardState
 
     public string TenantId { get; set; } = string.Empty;
     public string LicenseKeys { get; set; } = string.Empty;
+    public string PhpRuntimeMode { get; set; } = "ScheduledTask";
+
+    public string[] Validate()
+    {
+        var errors = new List<string>();
+
+        if (string.IsNullOrWhiteSpace(PrimaryDomain))
+        {
+            errors.Add("Primary Domain ist erforderlich.");
+        }
+
+        if (string.IsNullOrWhiteSpace(AdminEmail))
+        {
+            errors.Add("Admin Email ist erforderlich.");
+        }
+
+        if (string.IsNullOrWhiteSpace(AdminPassword))
+        {
+            errors.Add("Admin Passwort ist erforderlich.");
+        }
+
+        if (string.IsNullOrWhiteSpace(DatabasePassword))
+        {
+            errors.Add("Datenbank-Passwort ist erforderlich.");
+        }
+
+        if (!UseLocalDatabase)
+        {
+            if (string.IsNullOrWhiteSpace(DatabaseHost))
+            {
+                errors.Add("Bei externer Datenbank ist ein DB-Host erforderlich.");
+            }
+        }
+
+        if (EnableSmtp)
+        {
+            if (string.IsNullOrWhiteSpace(SmtpHost))
+            {
+                errors.Add("Bei aktivem SMTP ist ein SMTP-Host erforderlich.");
+            }
+
+            if (string.IsNullOrWhiteSpace(MailFromAddress))
+            {
+                errors.Add("Bei aktivem SMTP ist eine Mail-From-Adresse erforderlich.");
+            }
+        }
+
+        if (PhpRuntimeMode is not ("ScheduledTask" or "Nssm"))
+        {
+            errors.Add("PHP Runtime Mode muss ScheduledTask oder Nssm sein.");
+        }
+
+        return errors.ToArray();
+    }
 }

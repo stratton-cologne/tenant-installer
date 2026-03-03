@@ -1883,6 +1883,66 @@ function Start-OrReloadNginx {
     Write-Status "INFO" "Nginx gestartet"
 }
 
+function Invoke-PostInstallHealthCheck {
+    param(
+        [pscustomobject]$Context
+    )
+
+    $targetUrl = "http://127.0.0.1/"
+
+    if ($DryRun) {
+        Write-Status "INFO" "Dry-run: wuerde HTTP-Health-Check gegen $targetUrl mit Host '$($Context.PrimaryDomain)' ausfuehren"
+        return
+    }
+
+    try {
+        $request = [System.Net.HttpWebRequest]::Create($targetUrl)
+        $request.Method = "GET"
+        $request.Timeout = 5000
+        $request.ReadWriteTimeout = 5000
+        $request.Host = $Context.PrimaryDomain
+        $request.AllowAutoRedirect = $false
+
+        $response = [System.Net.HttpWebResponse]$request.GetResponse()
+        try {
+            $statusCode = [int]$response.StatusCode
+
+            if ($statusCode -ge 200 -and $statusCode -lt 500) {
+                Write-Status "INFO" "HTTP-Health-Check erfolgreich: $targetUrl (Host: $($Context.PrimaryDomain)) -> $statusCode"
+                return
+            }
+
+            Write-Status "WARN" "HTTP-Health-Check lieferte unerwarteten Status: $statusCode"
+        }
+        finally {
+            $response.Dispose()
+        }
+    }
+    catch [System.Net.WebException] {
+        $webException = $_.Exception
+
+        if ($null -ne $webException.Response) {
+            $response = [System.Net.HttpWebResponse]$webException.Response
+            try {
+                $statusCode = [int]$response.StatusCode
+
+                if ($statusCode -ge 200 -and $statusCode -lt 500) {
+                    Write-Status "INFO" "HTTP-Health-Check erfolgreich: $targetUrl (Host: $($Context.PrimaryDomain)) -> $statusCode"
+                    return
+                }
+
+                Write-Status "WARN" "HTTP-Health-Check lieferte Fehlerstatus: $statusCode"
+                return
+            }
+            finally {
+                $response.Dispose()
+            }
+        }
+
+        Write-Status "WARN" "HTTP-Health-Check fehlgeschlagen: $($webException.Message)"
+    }
+}
+
 function Write-InstallSummary {
     param(
         [pscustomobject]$Context,
@@ -1985,6 +2045,7 @@ Ensure-PhpFastCgiRunner -Context $context
 $nginxExecutable = Ensure-NginxInstalled
 Set-NginxConfiguration -Context $context -NginxExecutable $nginxExecutable
 Start-OrReloadNginx -NginxExecutable $nginxExecutable
+Invoke-PostInstallHealthCheck -Context $context
 
 Write-InstallSummary -Context $context -TargetOutputRoot $OutputRoot -BackendReleaseDir $backendReleaseDir -FrontendReleaseDir $frontendReleaseDir
 

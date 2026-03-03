@@ -97,7 +97,9 @@ public partial class MainWindow : Window
         try
         {
             await RunProcessAsync("powershell.exe", arguments.ToString());
-            StatusTextBlock.Text = "Installationsskript abgeschlossen.";
+            StatusTextBlock.Text = DryRunCheckBox.IsChecked == true
+                ? "Dry-run abgeschlossen. Es wurden keine Aenderungen geschrieben."
+                : "Installationsskript abgeschlossen. Runtime, Datenbank und Nginx wurden eingerichtet. Details stehen im Log.";
         }
         catch (Exception ex)
         {

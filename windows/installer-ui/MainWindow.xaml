@@ -18,7 +18,7 @@
             <TextBlock FontSize="28" FontWeight="SemiBold" Text="Tenant Installer" />
             <TextBlock Margin="0,6,0,0"
                        Foreground="#555"
-                       Text="Wizard fuer Basisdaten, Datenbank, SMTP, Deployment und den Start des Windows-Installationsskripts." />
+                       Text="Wizard fuer Basisdaten, Datenbank, SMTP, Deployment, Runtime-Setup und den verifizierten Windows-Installpfad." />
         </StackPanel>
 
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
@@ -176,6 +176,12 @@
                         </StackPanel>
                     </Grid>
                 </GroupBox>
+
+                <Border Margin="0,12,0,0" Padding="12" Background="#F4F4F4" CornerRadius="6">
+                    <TextBlock TextWrapping="Wrap"
+                               Foreground="#444"
+                               Text="Der aktuelle Installpfad richtet Releases, PHP, Composer, MariaDB, Laravel-Bootstrap, PHP-FastCGI und Nginx ein und fuehrt danach einen kleinen HTTP-Health-Check aus." />
+                </Border>
             </StackPanel>
         </ScrollViewer>
 

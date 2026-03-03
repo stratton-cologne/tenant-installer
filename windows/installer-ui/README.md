@@ -1,27 +1,28 @@
 # Windows Installer UI
 
-Dieses Verzeichnis enthaelt das erste GUI-Skelett fuer den Windows-Installer.
+Hier entsteht der neue WPF-Wizard.
 
-## Technologie
+## Wizard-Ziel
 
-- `.NET`
-- `WPF`
-- Ziel: spaeter Packaging als signiertes `EXE`
+Der Wizard soll folgende Bereiche abfragen:
 
-## Ziel fuer v1
+1. Basisdaten
+2. Datenbank (lokal oder remote)
+3. SMTP
+4. Optionale Tenant-ID / Lizenzkeys
+5. Zusammenfassung und Start der Installation
 
-Die GUI sammelt Installationsdaten, zeigt den Ablauf als Wizard und delegiert die technische Ausfuehrung an die bestehenden PowerShell-Skripte in `windows/scripts`.
+## Geplante Aufgaben
 
-## Aktueller Stand
+- Wizard-Layout erstellen
+- Datenmodell definieren
+- Validierung der Eingaben
+- Anbindung an PowerShell-Skripte
 
-- Projektdatei fuer eine Windows-WPF-Anwendung
-- Wizard-Grundlayout mit mehreren Schritten
-- Modell fuer Installationsdaten
-- Kommandoaufbau fuer `preflight.ps1` und `install.ps1`
-- echte Startbuttons fuer Preflight und Install
-- Live-Ausgabe fuer `stdout` und `stderr`
-- phasenbasierter Fortschrittsbalken auf Basis der `install.ps1`-Statusmeldungen
-- finaler Ergebnisbereich fuer Success- und Error-Zustaende
-- temporaere JSON-Konfiguration fuer `install.ps1 -ConfigPath ...`
+## Architekturgrenze
 
-Die GUI ist jetzt an die bestehende PowerShell-Engine angebunden. Fuer den Produktivstand fehlen vor allem Signierung, Packaging als `EXE` und ein finaler Error-/Success-Flow.
+Die UI soll keine Host-Installation direkt selbst ausfuehren.
+
+- Die UI sammelt und validiert Daten.
+- Die UI startet Skripte und zeigt deren Status an.
+- Systemeingriffe wie PHP-, Nginx- oder MariaDB-Installation gehoeren in `windows/scripts`.

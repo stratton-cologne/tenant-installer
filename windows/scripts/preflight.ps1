@@ -1,8 +1,8 @@
-param(
-    [switch]$CheckOnly
-)
+param()
 
 $ErrorActionPreference = "Stop"
+
+$script:Failed = $false
 
 function Write-Status {
     param(
@@ -13,26 +13,13 @@ function Write-Status {
     Write-Host "[$Level] $Message"
 }
 
-function Test-CommandAvailable {
+function Add-Failure {
     param(
-        [string]$Name,
-        [bool]$Required = $true
+        [string]$Message
     )
 
-    $command = Get-Command $Name -ErrorAction SilentlyContinue
-
-    if ($null -ne $command) {
-        Write-Status "PASS" "Befehl verfuegbar: $Name"
-        return $true
-    }
-
-    if ($Required) {
-        Write-Status "FAIL" "Befehl fehlt: $Name"
-        return $false
-    }
-
-    Write-Status "WARN" "Optionaler Befehl fehlt: $Name"
-    return $true
+    $script:Failed = $true
+    Write-Status "FAIL" $Message
 }
 
 function Test-Administrator {
@@ -42,11 +29,10 @@ function Test-Administrator {
 
     if ($isAdmin) {
         Write-Status "PASS" "Ausfuehrung mit Administratorrechten"
-        return $true
+        return
     }
 
-    Write-Status "FAIL" "Administratorrechte sind erforderlich"
-    return $false
+    Add-Failure "Administratorrechte sind erforderlich"
 }
 
 function Test-OsVersion {
@@ -54,90 +40,86 @@ function Test-OsVersion {
 
     if ($version.Major -ge 10) {
         Write-Status "PASS" "Unterstuetzte Windows-Version erkannt: $($version.ToString())"
-        return $true
+        return
     }
 
-    Write-Status "FAIL" "Nicht unterstuetzte Windows-Version: $($version.ToString())"
-    return $false
+    Add-Failure "Nicht unterstuetzte Windows-Version: $($version.ToString())"
 }
 
-function Test-PhpVersion {
-    $php = Get-Command php -ErrorAction SilentlyContinue
-
-    if ($null -eq $php) {
-        Write-Status "FAIL" "PHP fehlt"
-        return $false
-    }
-
-    $phpVersion = & php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;'
-
-    if ($phpVersion -eq "8.2") {
-        Write-Status "PASS" "PHP 8.2 erkannt"
-        return $true
-    }
-
-    Write-Status "FAIL" "Falsche PHP-Version erkannt: $phpVersion (erwartet 8.2)"
-    return $false
-}
-
-function Test-PhpExtension {
+function Test-CommandOptional {
     param(
         [string]$Name
     )
 
-    $modules = & php -m
-
-    if ($modules -contains $Name) {
-        Write-Status "PASS" "PHP-Extension verfuegbar: $Name"
+    if ($null -ne (Get-Command $Name -ErrorAction SilentlyContinue)) {
+        Write-Status "PASS" "Befehl verfuegbar: $Name"
         return $true
     }
 
-    Write-Status "FAIL" "PHP-Extension fehlt: $Name"
+    Write-Status "WARN" "Befehl nicht gefunden: $Name"
     return $false
 }
 
-function Test-PortAvailability {
-    param(
-        [int]$Port
-    )
-
-    $listener = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
-
-    if ($null -eq $listener) {
-        Write-Status "PASS" "Port $Port ist aktuell frei"
-        return $true
+function Test-GitAvailability {
+    if (Test-CommandOptional -Name "git") {
+        Write-Status "INFO" "Git ist verfuegbar. Release-Bezug ueber GitHub kann vorbereitet werden."
+        return
     }
 
-    Write-Status "WARN" "Port $Port ist bereits belegt"
-    return $true
+    Add-Failure "Git fehlt. Der geplante Release-Bezug kann so nicht ausgefuehrt werden."
 }
 
-$allChecksPassed = $true
+function Test-Php82 {
+    $php = Get-Command php -ErrorAction SilentlyContinue
+
+    if ($null -eq $php) {
+        Write-Status "WARN" "PHP ist nicht vorhanden und muss spaeter installiert werden."
+        return
+    }
+
+    $version = (& php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;')
+
+    if ($version -eq "8.2") {
+        Write-Status "PASS" "PHP 8.2 erkannt"
+        return
+    }
+
+    Write-Status "WARN" "PHP erkannt, aber falsche Version: $version. Upgrade oder Neuinstallation von PHP 8.2 erforderlich."
+}
+
+function Test-NginxAvailability {
+    if (Test-CommandOptional -Name "nginx") {
+        Write-Status "PASS" "Nginx ist bereits verfuegbar"
+        return
+    }
+
+    Write-Status "WARN" "Nginx ist nicht vorhanden und muss spaeter eingerichtet werden."
+}
+
+function Test-InstallerTooling {
+    $hasWinget = Test-CommandOptional -Name "winget"
+    $hasChoco = Test-CommandOptional -Name "choco"
+
+    if ($hasWinget -or $hasChoco) {
+        Write-Status "PASS" "Mindestens ein Paketmanager fuer spaetere Installationen verfuegbar"
+        return
+    }
+
+    Write-Status "WARN" "Kein Paketmanager erkannt (weder winget noch choco). Tool-Installation muss ggf. manuell oder per direktem Download erfolgen."
+}
 
 Write-Status "INFO" "Starte Windows-Preflight"
+Test-Administrator
+Test-OsVersion
+Test-GitAvailability
+Test-Php82
+Test-NginxAvailability
+Test-InstallerTooling
 
-if (-not (Test-Administrator)) { $allChecksPassed = $false }
-if (-not (Test-OsVersion)) { $allChecksPassed = $false }
-if (-not (Test-CommandAvailable -Name "php" -Required $true)) { $allChecksPassed = $false }
-if (-not (Test-PhpVersion)) { $allChecksPassed = $false }
-if (-not (Test-CommandAvailable -Name "composer" -Required $true)) { $allChecksPassed = $false }
-if (-not (Test-CommandAvailable -Name "jq" -Required $true)) { $allChecksPassed = $false }
-if (-not (Test-CommandAvailable -Name "Expand-Archive" -Required $true)) { $allChecksPassed = $false }
-if (-not (Test-CommandAvailable -Name "mysql" -Required $false)) { }
-if (-not (Test-CommandAvailable -Name "mariadb" -Required $false)) { }
-if (-not (Test-PhpExtension -Name "pdo_mysql")) { $allChecksPassed = $false }
-if (-not (Test-PhpExtension -Name "mbstring")) { $allChecksPassed = $false }
-if (-not (Test-PhpExtension -Name "openssl")) { $allChecksPassed = $false }
-if (-not (Test-PhpExtension -Name "xml")) { $allChecksPassed = $false }
-if (-not (Test-PhpExtension -Name "curl")) { $allChecksPassed = $false }
-if (-not (Test-PhpExtension -Name "zip")) { $allChecksPassed = $false }
-if (-not (Test-PortAvailability -Port 80)) { }
-if (-not (Test-PortAvailability -Port 443)) { }
-
-if ($allChecksPassed) {
-    Write-Status "INFO" "Preflight erfolgreich abgeschlossen"
-    exit 0
+if ($script:Failed) {
+    Write-Status "INFO" "Preflight mit Fehlern abgeschlossen"
+    exit 1
 }
 
-Write-Status "INFO" "Preflight mit Fehlern abgeschlossen"
-exit 1
+Write-Status "INFO" "Preflight erfolgreich abgeschlossen"
+exit 0

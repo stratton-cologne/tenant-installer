@@ -1,189 +1,111 @@
 # Architektur
 
-## Systemaufteilung
+## Zielbild
 
-Das Repository wird in vier Hauptbereiche getrennt:
+Der Windows Tenant Installer besteht aus vier Hauptbausteinen:
 
-- Gemeinsame Definitionen und Vorlagen
-- Windows-Installer
-- Ubuntu-Installer
-- Modul-Manager
+1. WPF-Wizard fuer die Datenerfassung und Orchestrierung
+2. PowerShell-Skripte fuer Systempruefung, Installation und Konfiguration
+3. Release-Bezugskomponente fuer Backend- und Frontend-Releases
+4. Bootstrap-/Packaging-Schicht fuer ein verteilbares Setup
 
-Die Plattformpfade nutzen gemeinsame Manifeste, Templates und Validierungslogik, bleiben aber in der Ausfuehrung nativ.
+## Architekturentscheidung: Skripte vs. direkte Logik im Installer
 
-## Komponentenmodell
+Die eigentliche Systemlogik soll nicht direkt in der WPF-Oberflaeche implementiert werden.
 
-### Shared
+### Was direkt in den Installer (WPF) gehoert
 
-`shared/` enthaelt die wiederverwendbaren Bestandteile:
+- Wizard-Schritte und Benutzerfuehrung
+- Eingabevalidierung auf UI-Ebene
+- Zusammenfassung der erfassten Daten
+- Start, Abbruch und Beobachtung von Installationslaeufen
+- Darstellung von Fortschritt, Logs und Fehlern
 
-- Release-Metafile-Schema
-- Konfigurationsschemas
-- Vorlagen fuer `Nginx`, App-Config und Service-Definitionen
-- Logging-Formate
-- Validierungsregeln fuer Eingaben
+### Was in PowerShell-Skripte gehoert
 
-### Windows
+- Systempruefungen (Preflight)
+- Installation und Konfiguration von PHP 8.2
+- Installation und Konfiguration von Nginx
+- optionale Installation von MariaDB
+- Release-Bezug und Deployment
+- Schreiben von Konfigurationsdateien und Durchfuehren von Shell-Befehlen
 
-`windows/` enthaelt:
+### Warum diese Trennung sinnvoll ist
 
-- Bootstrap-Logik fuer Voraussetzungen
-- Assistentenlogik fuer den interaktiven Ablauf
-- Auslieferung und Konfiguration von `Nginx`
-- Service-Wrapper fuer Queue und Scheduler
-- Skripte fuer Install, Update, Repair, Uninstall und Check
+- Die UI bleibt schlank und auf Benutzerfuehrung fokussiert.
+- Systemeingriffe sind in Skripten einfacher testbar und schrittweise erweiterbar.
+- Dieselbe Ausfuehrungslogik kann spaeter auch ohne GUI genutzt werden.
+- Fehler in Host-Konfiguration und Deployment lassen sich in Skripten gezielter behandeln.
 
-### Ubuntu
+## Erste technische Entscheidung fuer den Neustart
 
-`ubuntu/` enthaelt:
+Der neue Installer soll daher:
 
-- Interaktive Shell-Skripte fuer Install, Update, Repair, Uninstall und Check
-- `Nginx`-Konfiguration
-- `systemd`- und `Supervisor`-Definitionen
-- `Let's Encrypt`-Einrichtung
-- Hilfsskripte fuer Paketpruefung, Proxy und Ports
+1. Installationsdaten im WPF-Wizard erfassen
+2. diese Daten an PowerShell-Skripte uebergeben
+3. die eigentliche Host-Konfiguration ausschliesslich ueber Skripte ausfuehren
 
-### Modul-Manager
-
-`module-manager/` enthaelt:
-
-- Gemeinsame Paketlogik fuer lokale Moduldateien
-- Plattformnahe Shells oder Launcher fuer Windows und Ubuntu
-- Entpack-, Aktivierungs- und Deaktivierungslogik
-- Nachlauf fuer Migrationen, Cache-Neuaufbau und technische Synchronisation
-
-## Installationsfluss
+## Kernablaeufe
 
 ### 1. Preflight
 
-Vor jeder schreibenden Aktion:
+- Pruefen, ob Windows kompatibel ist
+- Pruefen, ob PHP 8.2 vorhanden ist
+- Pruefen, ob Nginx vorhanden ist
+- Pruefen, ob GitHub-Zugriff fuer Release-Bezug moeglich ist
+- Pruefen, ob Port- und Dateisystemvoraussetzungen erfuellt sind
 
-- Betriebssystem und Version pruefen
-- Administratorrechte pruefen
-- Netzwerk und Proxy pruefen
-- Domain und DNS pruefen
-- Ports `80` und `443` pruefen
-- Vorhandensein von `PHP 8.2`, benoetigten Extensions, `Composer`, DB-Client pruefen
+### 2. Wizard
 
-Im Pruefmodus endet der Lauf nach der Ausgabe des Statusberichts.
+Der Wizard erfasst:
 
-### 2. Eingabefluss
+- Basisdaten
+- Datenbankdaten inklusive lokal/remote-Entscheidung
+- optionale SMTP-Konfiguration
+- optionale Tenant-ID / Lizenzkeys
 
-Der Installer erfasst:
+### 3. Installation
 
-- App-Pfad
-- Domain
-- Admin-Zugang
-- Datenbankdaten
-- Optionale SMTP-Daten
-- Optionale Tenant- und Lizenzdaten
-- SSL-Wunsch
-- Entscheidung ueber lokale DB-Installation
+- neuestes Backend-Release beziehen
+- neuestes Frontend-Release beziehen
+- Backend bereitstellen
+- Frontend in `public` des Backends kopieren
+- `.env` bzw. Laufzeitkonfiguration erzeugen
+- Nginx einrichten
+- PHP 8.2 sicherstellen
+- optional MariaDB lokal installieren
 
-Geheime Werte werden maskiert eingegeben und nie in Klartext-Logs geschrieben.
+### 4. Packaging
 
-### 3. Release-Aufloesung
+- WPF-App als auslieferbares Windows-Artefakt bauen
+- Setup-Wrapper fuer Installationsverteilung erstellen
 
-Fuer Backend und Frontend getrennt:
+## Komponentenstruktur
 
-- Neueste stabile Release ermitteln
-- Release-Metadaten lesen
-- Kompatibilitaetshinweise auswerten
-- Zielversion dem Benutzer anzeigen
-- Ausfuehrung bestaetigen lassen
+### `windows/installer-ui`
 
-### 4. Deployment
+- Wizard-Oberflaeche
+- Schrittmodell
+- Validierung von Benutzereingaben
+- Start von PowerShell-Installationslaeufen
+- keine direkte Implementierung von Systeminstallationen im UI-Code
 
-#### Backend
+### `windows/scripts`
 
-- Release-ZIP entpacken
-- `.env` schreiben
-- Falls notwendig Verzeichnisse vorbereiten
-- `composer install` ausfuehren
-- Laravel-Initialisierung und Migrationen ausfuehren
-
-#### Frontend
-
-- Bestehende Artefakte sichern
-- Neues `dist` deployen
-- Alte Artefakte ersetzen
-
-#### Runtime
-
-- `Nginx` konfigurieren
-- SSL optional konfigurieren
-- Queue-Worker und Scheduler einrichten
-- Health-Check ausfuehren
-
-### 5. Persistenz
-
-Der Installer speichert einen verschluesselten Zustandsdatensatz unter `installer/state`, um spaetere `Update`, `Repair` und `Uninstall`-Ablaufe reproduzierbar zu machen.
-
-## Update-Strategie
-
-Updates laufen immer als In-Place-Update mit:
-
-- Snapshot des aktuellen Zustands
-- Backup relevanter Dateien
-- Sicherung vorhandener Frontend-Artefakte
-- Durchfuehrung des Updates
-- Rollback-Moeglichkeit bei Fehlern
-
-Frontend und Backend koennen getrennte Versionen besitzen. Deshalb muss der Update-Ablauf beide Komponenten isoliert pruefen und deren Metadaten separat behandeln.
-
-## Repair-Strategie
-
-`Repair` behebt vor allem:
-
-- Fehlende oder fehlerhafte Services
-- Defekte `Nginx`-Konfiguration
-- Fehlende Dateien aus dem letzten Installationsstand
-- Inkonsistente Installer-Zustandsdaten
-
-`Repair` darf bei Bedarf Artefakte erneut herunterladen.
-
-## Uninstall-Strategie
-
-`Uninstall` liest die verschluesselte Installer-Zustandsdatei und entfernt:
-
-- Deployte Anwendungsdateien
-- Webserver-Konfiguration
-- Dienste und Scheduler
-- Optional lokale technische Abhaengigkeiten, sofern vom Installer angelegt
-
-Vor dem Entfernen von Datenbankinhalten oder persistenten Dateien wird der Benutzer explizit gefragt.
-
-## Modul-Paketfluss
-
-Der Modul-Manager verarbeitet lokale ZIP-Dateien mit definiertem Layout:
-
-- `module.json`
-- `backend/`
-- `frontend/`
-
-Ablauf:
-
-- Paket auswaehlen
-- Paketstruktur validieren
-- Dateien entpacken
-- Registrierung aktualisieren
-- Notwendige Nacharbeiten ausfuehren
-- Aktivierungszustand setzen
-
-In `v1` gibt es keine harte Blockade auf Basis einer Kompatibilitaetspruefung. Der Modul-Manager sollte dennoch sichtbare Warnungen fuer moegliche Konflikte ausgeben.
-
-## Logging-Modell
-
-Jeder Ablauf erzeugt einen getrennten Logstrom:
-
+- Preflight
 - Install
-- Update
-- Module
-- Repair
+- Release-Bezug
+- PHP- / Nginx- / MariaDB-Setup
+- technische Ausfuehrung aller mutierenden Host-Operationen
 
-Logeintraege muessen:
+### `windows/bootstrap`
 
-- Zeitstempel enthalten
-- Plattform und Aktion enthalten
-- sensible Werte maskieren
-- fuer Rotation oder Archivierung geeignet sein
+- Publish der UI
+- Setup-Build
+
+## Technische Leitlinien
+
+- Windows zuerst, keine Cross-Platform-Abstraktion im ersten Schritt
+- Klare Trennung zwischen UI und Ausfuehrungslogik
+- Idempotente Skriptbausteine, soweit moeglich
+- Fehler sollen im Wizard klar sichtbar werden

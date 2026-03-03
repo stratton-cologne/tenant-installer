@@ -106,6 +106,8 @@ function Save-ReleaseMetadata {
         is_prerelease = [bool]$Release.prerelease
         published_at = $Release.published_at
         html_url = $Release.html_url
+        zipball_url = $Release.zipball_url
+        tarball_url = $Release.tarball_url
         assets = @(
             @($Release.assets) | ForEach-Object {
                 [ordered]@{
@@ -145,6 +147,10 @@ function Download-ReleaseAssets {
 
     if ($assets.Count -eq 0) {
         Write-Status "WARN" "Release hat keine Assets: $($Repository.Slug) @$tag"
+        $sourceArchiveName = "$ComponentName-$tag-source.zip"
+        $sourceArchivePath = Join-Path $assetsRoot $sourceArchiveName
+        Write-Status "INFO" "Lade Source-ZIP des Releases: $sourceArchiveName"
+        Invoke-WebRequest -Uri $Release.zipball_url -Headers $Headers -OutFile $sourceArchivePath
     }
     else {
         foreach ($asset in $assets) {

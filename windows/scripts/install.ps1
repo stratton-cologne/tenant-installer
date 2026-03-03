@@ -789,7 +789,7 @@ function Get-ApplicationUrl {
         $scheme = "https"
     }
 
-    return "$scheme://$($Context.PrimaryDomain)"
+    return "${scheme}://$($Context.PrimaryDomain)"
 }
 
 function Write-EnvironmentFile {
@@ -797,8 +797,8 @@ function Write-EnvironmentFile {
         [pscustomobject]$Context
     )
 
-    $appRoot = Get-ApplicationRoot -BackendTarget (Join-Path $Context.InstallRoot "backend")
-    $envPath = Join-Path $appRoot ".env"
+    $backendTarget = Join-Path $Context.InstallRoot "backend"
+    $envPath = Join-Path $backendTarget ".env"
     $databaseHost = $Context.DatabaseHost
 
     if ($Context.UseLocalDatabase) {
@@ -859,6 +859,9 @@ function Write-EnvironmentFile {
         return
     }
 
+    $appRoot = Get-ApplicationRoot -BackendTarget $backendTarget
+    $envPath = Join-Path $appRoot ".env"
+
     $content = $lines -join "`r`n"
     Set-Content -LiteralPath $envPath -Value $content -Encoding UTF8
     Write-Status "INFO" ".env geschrieben: $envPath"
@@ -870,6 +873,11 @@ function Invoke-ComposerInstall {
         [string]$ComposerExecutable
     )
 
+    if ($DryRun) {
+        Write-Status "INFO" "Dry-run: wuerde 'composer install' im bereitgestellten Backend ausfuehren"
+        return
+    }
+
     $appRoot = Get-ApplicationRoot -BackendTarget (Join-Path $Context.InstallRoot "backend")
     $composerManifest = Join-Path $appRoot "composer.json"
 
@@ -880,11 +888,6 @@ function Invoke-ComposerInstall {
 
     if ([string]::IsNullOrWhiteSpace($ComposerExecutable)) {
         throw "Composer-Install wurde angefordert, aber Composer ist nicht verfuegbar."
-    }
-
-    if ($DryRun) {
-        Write-Status "INFO" "Dry-run: wuerde 'composer install' in $appRoot ausfuehren"
-        return
     }
 
     $arguments = @(
@@ -947,6 +950,11 @@ function Invoke-LaravelBootstrap {
         [string]$PhpExecutable
     )
 
+    if ($DryRun) {
+        Write-Status "INFO" "Dry-run: wuerde Laravel-Bootstrap (key:generate, migrate, cache/storage) ausfuehren"
+        return
+    }
+
     $appRoot = Get-ApplicationRoot -BackendTarget (Join-Path $Context.InstallRoot "backend")
     $artisanPath = Join-Path $appRoot "artisan"
 
@@ -967,6 +975,11 @@ function Ensure-PhpFastCgiNssmService {
         [pscustomobject]$Context
     )
 
+    if ($DryRun) {
+        Write-Status "INFO" "Dry-run: wuerde einen NSSM-Service fuer php-cgi.exe auf 127.0.0.1:9000 einrichten"
+        return
+    }
+
     $phpCgiExecutable = Find-PhpCgiExecutable
 
     if ([string]::IsNullOrWhiteSpace($phpCgiExecutable)) {
@@ -982,11 +995,6 @@ function Ensure-PhpFastCgiNssmService {
         else {
             throw "NSSM wurde nicht gefunden und Chocolatey ist fuer die Installation nicht verfuegbar."
         }
-    }
-
-    if ($DryRun) {
-        Write-Status "INFO" "Dry-run: wuerde NSSM fuer den PHP-FastCGI-Dienst einrichten"
-        return
     }
 
     $nssmExecutable = Find-NssmExecutable
@@ -1018,6 +1026,11 @@ function Ensure-PhpFastCgiScheduledTask {
         [pscustomobject]$Context
     )
 
+    if ($DryRun) {
+        Write-Status "INFO" "Dry-run: wuerde einen Scheduled Task fuer php-cgi.exe auf 127.0.0.1:9000 einrichten"
+        return
+    }
+
     $phpCgiExecutable = Find-PhpCgiExecutable
 
     if ([string]::IsNullOrWhiteSpace($phpCgiExecutable)) {
@@ -1039,12 +1052,6 @@ if (\$null -eq \$existing) {
     Start-Process -FilePath "$phpCgiExecutable" -ArgumentList @('-b', '127.0.0.1:9000') -WorkingDirectory "$phpDir" -WindowStyle Hidden
 }
 "@
-
-    if ($DryRun) {
-        Write-Status "INFO" "Dry-run: wuerde PHP-FastCGI-Startskript nach $launcherPath schreiben"
-        Write-Status "INFO" "Dry-run: wuerde geplanten Task $taskName anlegen und starten"
-        return
-    }
 
     New-Item -ItemType Directory -Force -Path $launcherRoot | Out-Null
     Set-Content -LiteralPath $launcherPath -Value $launcherContent -Encoding UTF8

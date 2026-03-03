@@ -1,0 +1,23 @@
+{
+  "InstallRoot": "C:\\TenantPlatform-Test",
+  "PrimaryDomain": "tenant-test.local",
+  "UseSsl": false,
+  "AdminEmail": "admin@example.test",
+  "AdminPassword": "TestPassword123!",
+  "UseLocalDatabase": false,
+  "DatabaseHost": "127.0.0.1",
+  "DatabasePort": "3306",
+  "DatabaseName": "tenant_platform",
+  "DatabaseUser": "tenant_user",
+  "DatabasePassword": "DatabasePassword123!",
+  "EnableSmtp": false,
+  "SmtpHost": "",
+  "SmtpPort": "587",
+  "SmtpUser": "",
+  "SmtpPassword": "",
+  "SmtpEncryption": "tls",
+  "MailFromAddress": "",
+  "TenantId": "",
+  "LicenseKeys": "",
+  "PhpRuntimeMode": "ScheduledTask"
+}

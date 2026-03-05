@@ -183,10 +183,10 @@
                         </StackPanel>
 
                         <StackPanel Grid.Row="3" Grid.Column="1" Orientation="Horizontal" Margin="0,12,0,0">
-                            <Button Width="190" Height="38" Click="RunPreflightClicked" Content="Preflight ausfuehren" />
-                            <Button Width="190" Height="38" Margin="12,0,0,0" Click="TestDatabaseClicked" Content="DB-Verbindung testen" />
-                            <Button Width="190" Height="38" Margin="12,0,0,0" Click="PreviewConfigClicked" Content="Konfiguration pruefen" />
-                            <Button Width="190" Height="38" Margin="12,0,0,0" Click="StartInstallClicked" Content="Installation starten" />
+                            <Button x:Name="RunPreflightButton" Width="190" Height="38" Click="RunPreflightClicked" Content="Preflight ausfuehren" />
+                            <Button x:Name="TestDatabaseButton" Width="190" Height="38" Margin="12,0,0,0" Click="TestDatabaseClicked" Content="DB-Verbindung testen" />
+                            <Button x:Name="PreviewConfigButton" Width="190" Height="38" Margin="12,0,0,0" Click="PreviewConfigClicked" Content="Konfiguration pruefen" />
+                            <Button x:Name="StartInstallButton" Width="190" Height="38" Margin="12,0,0,0" Click="StartInstallClicked" Content="Installation starten" />
                         </StackPanel>
                     </Grid>
                 </GroupBox>

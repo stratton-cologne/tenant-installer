@@ -10,12 +10,15 @@ namespace TenantInstaller.Ui;
 
 public partial class MainWindow : Window
 {
+    private bool _isBusy;
+
     public MainWindow()
     {
         InitializeComponent();
         UseSslChanged(this, new RoutedEventArgs());
         UseLocalDatabaseChanged(this, new RoutedEventArgs());
         EnableSmtpChanged(this, new RoutedEventArgs());
+        SetBusy(false);
     }
 
     private void UseSslChanged(object sender, RoutedEventArgs e)
@@ -44,6 +47,11 @@ public partial class MainWindow : Window
 
     private void PreviewConfigClicked(object sender, RoutedEventArgs e)
     {
+        if (_isBusy)
+        {
+            return;
+        }
+
         var state = BuildState();
         var errors = state.Validate();
 
@@ -60,6 +68,11 @@ public partial class MainWindow : Window
 
     private async void TestDatabaseClicked(object sender, RoutedEventArgs e)
     {
+        if (_isBusy)
+        {
+            return;
+        }
+
         var state = BuildState();
         var errors = state.Validate();
 
@@ -77,22 +90,36 @@ public partial class MainWindow : Window
             return;
         }
 
+        SetBusy(true);
         StatusTextBlock.Text = $"Teste DB-Verbindung zu {host}:{port} ...";
-        var reachable = await TestTcpConnectivityAsync(host, port, 5000);
 
-        if (reachable)
+        try
         {
-            StatusTextBlock.Text = $"DB-Verbindung erreichbar: {host}:{port}";
-            LogTextBox.Text = $"[INFO] DB-Verbindung erfolgreich getestet: {host}:{port}";
-            return;
-        }
+            var reachable = await TestTcpConnectivityAsync(host, port, 5000);
 
-        StatusTextBlock.Text = $"DB-Verbindung nicht erreichbar: {host}:{port}";
-        LogTextBox.Text = $"[WARN] DB-Verbindung fehlgeschlagen: {host}:{port}";
+            if (reachable)
+            {
+                StatusTextBlock.Text = $"DB-Verbindung erreichbar: {host}:{port}";
+                LogTextBox.Text = $"[INFO] DB-Verbindung erfolgreich getestet: {host}:{port}";
+                return;
+            }
+
+            StatusTextBlock.Text = $"DB-Verbindung nicht erreichbar: {host}:{port}";
+            LogTextBox.Text = $"[WARN] DB-Verbindung fehlgeschlagen: {host}:{port}";
+        }
+        finally
+        {
+            SetBusy(false);
+        }
     }
 
     private async void StartInstallClicked(object sender, RoutedEventArgs e)
     {
+        if (_isBusy)
+        {
+            return;
+        }
+
         var state = BuildState();
         var errors = state.Validate();
 
@@ -141,6 +168,7 @@ public partial class MainWindow : Window
 
         StatusTextBlock.Text = "Installationsskript laeuft...";
         LogTextBox.Clear();
+        SetBusy(true);
 
         try
         {
@@ -157,11 +185,17 @@ public partial class MainWindow : Window
         finally
         {
             TryDeleteTempFile(configPath);
+            SetBusy(false);
         }
     }
 
     private async void RunPreflightClicked(object sender, RoutedEventArgs e)
     {
+        if (_isBusy)
+        {
+            return;
+        }
+
         var preflightScript = FindScriptInWorkspace("preflight.ps1");
 
         if (preflightScript is null)
@@ -172,6 +206,7 @@ public partial class MainWindow : Window
 
         StatusTextBlock.Text = "Preflight laeuft...";
         LogTextBox.Clear();
+        SetBusy(true);
 
         try
         {
@@ -183,6 +218,10 @@ public partial class MainWindow : Window
         {
             StatusTextBlock.Text = "Preflight fehlgeschlagen.";
             MessageBox.Show(ex.Message, "Preflight-Fehler", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        finally
+        {
+            SetBusy(false);
         }
     }
 
@@ -330,5 +369,15 @@ public partial class MainWindow : Window
         {
             return false;
         }
+    }
+
+    private void SetBusy(bool busy)
+    {
+        _isBusy = busy;
+
+        RunPreflightButton.IsEnabled = !busy;
+        TestDatabaseButton.IsEnabled = !busy;
+        PreviewConfigButton.IsEnabled = !busy;
+        StartInstallButton.IsEnabled = !busy;
     }
 }

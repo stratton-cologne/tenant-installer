@@ -2016,7 +2016,8 @@ $serverBlock
 
 function Start-OrReloadNginx {
     param(
-        [string]$NginxExecutable
+        [string]$NginxExecutable,
+        [pscustomobject]$Context
     )
 
     if ([string]::IsNullOrWhiteSpace($NginxExecutable)) {
@@ -2050,6 +2051,20 @@ function Start-OrReloadNginx {
 
     $running = Get-Process -Name "nginx" -ErrorAction SilentlyContinue | Select-Object -First 1
 
+    function Assert-NginxPorts {
+        param(
+            [pscustomobject]$NginxContext
+        )
+
+        if (-not (Wait-ForTcpPort -HostName "127.0.0.1" -Port 80 -TimeoutSeconds 10)) {
+            throw "Nginx ist aktiv, aber Port 80 ist nicht erreichbar. Bitte pruefe Portbelegung und Firewall."
+        }
+
+        if ($NginxContext.UseSsl -and -not (Wait-ForTcpPort -HostName "127.0.0.1" -Port 443 -TimeoutSeconds 10)) {
+            throw "SSL ist aktiviert, aber Port 443 ist nicht erreichbar. Bitte Zertifikat, Schluessel und Portbelegung pruefen."
+        }
+    }
+
     if ($null -ne $running) {
         Push-Location -LiteralPath $nginxRoot
         try {
@@ -2063,6 +2078,7 @@ function Start-OrReloadNginx {
             Pop-Location
         }
 
+        Assert-NginxPorts -NginxContext $Context
         Write-Status "INFO" "Nginx neu geladen"
         return
     }
@@ -2075,9 +2091,7 @@ function Start-OrReloadNginx {
         Pop-Location
     }
 
-    if (-not (Wait-ForTcpPort -HostName "127.0.0.1" -Port 80 -TimeoutSeconds 10)) {
-        throw "Nginx wurde gestartet, aber Port 80 ist nicht erreichbar. Bitte pruefe, ob Port 80 bereits belegt ist oder ob nginx den Port binden darf."
-    }
+    Assert-NginxPorts -NginxContext $Context
 
     Write-Status "INFO" "Nginx gestartet"
 }
@@ -2256,7 +2270,7 @@ Invoke-LaravelBootstrap -Context $context -PhpExecutable $phpExecutable
 Ensure-PhpFastCgiRunner -Context $context
 $nginxExecutable = Ensure-NginxInstalled
 Set-NginxConfiguration -Context $context -NginxExecutable $nginxExecutable
-Start-OrReloadNginx -NginxExecutable $nginxExecutable
+Start-OrReloadNginx -NginxExecutable $nginxExecutable -Context $context
 Invoke-PostInstallHealthCheck -Context $context
 
 Write-InstallSummary -Context $context -TargetOutputRoot $OutputRoot -BackendReleaseDir $backendReleaseDir -FrontendReleaseDir $frontendReleaseDir

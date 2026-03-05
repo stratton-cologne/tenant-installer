@@ -102,7 +102,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        var installScript = FindInstallScript();
+        var installScript = FindScriptInWorkspace("install.ps1");
 
         if (installScript is null)
         {
@@ -150,6 +150,32 @@ public partial class MainWindow : Window
         }
     }
 
+    private async void RunPreflightClicked(object sender, RoutedEventArgs e)
+    {
+        var preflightScript = FindScriptInWorkspace("preflight.ps1");
+
+        if (preflightScript is null)
+        {
+            MessageBox.Show("windows\\scripts\\preflight.ps1 wurde relativ zur Anwendung nicht gefunden.", "Fehlendes Skript", MessageBoxButton.OK, MessageBoxImage.Error);
+            return;
+        }
+
+        StatusTextBlock.Text = "Preflight laeuft...";
+        LogTextBox.Clear();
+
+        try
+        {
+            var arguments = $"-NoProfile -ExecutionPolicy Bypass -File \"{preflightScript}\"";
+            await RunProcessAsync("powershell.exe", arguments, string.Empty);
+            StatusTextBlock.Text = "Preflight erfolgreich abgeschlossen.";
+        }
+        catch (Exception ex)
+        {
+            StatusTextBlock.Text = "Preflight fehlgeschlagen.";
+            MessageBox.Show(ex.Message, "Preflight-Fehler", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
     private WizardState BuildState()
     {
         var smtpMode = (SmtpEncryptionComboBox.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "tls";
@@ -182,13 +208,13 @@ public partial class MainWindow : Window
         };
     }
 
-    private string? FindInstallScript()
+    private string? FindScriptInWorkspace(string scriptName)
     {
         var current = new DirectoryInfo(AppContext.BaseDirectory);
 
         while (current is not null)
         {
-            var candidate = Path.Combine(current.FullName, "windows", "scripts", "install.ps1");
+            var candidate = Path.Combine(current.FullName, "windows", "scripts", scriptName);
 
             if (File.Exists(candidate))
             {

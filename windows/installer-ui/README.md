@@ -24,6 +24,7 @@ Der Wizard soll folgende Bereiche abfragen:
 - WPF-Projekt `TenantInstaller.Ui.csproj` vorhanden
 - Formular fuer Basisdaten, SSL-Zertifikatspfade, Datenbank, SMTP, optionale Felder und PHP-Runtime-Modus
 - Validierung ueber `WizardState`
+- separater `Preflight ausfuehren`-Button fuer reine Systemchecks ohne Installlauf
 - direkter TCP-Check fuer die Datenbankverbindung im Wizard (`DB-Verbindung testen`)
 - Start von `windows/scripts/install.ps1` inklusive JSON-Konfigurationsdatei und Live-Log
 - GitHub-Token wird beim Start nur als Prozess-Umgebungsvariable (`GITHUB_TOKEN`) uebergeben, nicht als sichtbares CLI-Argument

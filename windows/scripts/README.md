@@ -23,7 +23,7 @@ Hier entsteht die PowerShell-Installationslogik.
 - `preflight.ps1` als erster lauffaehiger Preflight-Skeleton
 - `fetch-releases.ps1` als erster Baustein fuer den Bezug der neuesten GitHub-Releases und deren Assets
 - `install.ps1` als Orchestrierungs-Skript fuer Preflight, Release-Bezug, Entpacken, Frontend-Deployment nach `public`, `.env`-Erzeugung, PHP-8.2-Pruefung/Installation, Composer-Install, Laravel-Bootstrap, PHP-FastCGI (Scheduled Task oder optional NSSM), Nginx-Basis-Setup und optionale MariaDB-Installation samt Provisionierung
-- `install.ps1` enthaelt zusaetzlich striktere Eingabevalidierung (Ports/E-Mails/Pflichtfelder) und eine fruehzeitige Erreichbarkeitspruefung fuer Remote-Datenbanken, damit Fehlkonfigurationen vor dem teuren Installteil auffallen
+- `install.ps1` enthaelt zusaetzlich striktere Eingabevalidierung (Ports/E-Mails/Pflichtfelder), Platzhalter-Schutz fuer Remote-DB-Configs (`REPLACE_WITH_*`) und eine fruehzeitige Erreichbarkeitspruefung fuer Remote-Datenbanken, damit Fehlkonfigurationen vor dem teuren Installteil auffallen
 
 ## Warum Skripte hier sinnvoll sind
 

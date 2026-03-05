@@ -189,6 +189,16 @@ function Validate-InstallContext {
         throw "DatabaseHost ist erforderlich, wenn UseLocalDatabase=false ist."
     }
 
+    if (-not $Context.UseLocalDatabase) {
+        if ([string]$Context.DatabaseHost -like "REPLACE_WITH_*") {
+            throw "DatabaseHost enthaelt noch einen Platzhalterwert. Bitte echten Remote-Host eintragen."
+        }
+
+        if ([string]$Context.DatabasePassword -like "REPLACE_WITH_*") {
+            throw "DatabasePassword enthaelt noch einen Platzhalterwert. Bitte echtes Passwort eintragen."
+        }
+    }
+
     if ($Context.EnableSmtp -and [string]::IsNullOrWhiteSpace($Context.MailFromAddress)) {
         throw "MailFromAddress ist erforderlich, wenn SMTP aktiviert ist."
     }

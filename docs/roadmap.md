@@ -21,13 +21,13 @@
 - Nginx sicherstellen
 - lokale MariaDB-Option vorbereiten
 
-## Phase 4: Packaging
+## Phase 4: Packaging (Optional)
 
 - WPF-App publizieren
-- Setup-Wrapper erstellen
-- spaeter optional Signierung ergaenzen
+- Setup-Wrapper nur bei Bedarf (z. B. Enterprise-Verteilung)
+- optional Signierung ergaenzen
 
-## Phase 5: Test und Härtung
+## Phase 5: Test und Haertung
 
 - Testfaelle fuer lokale und remote Datenbank
 - Fehlerbehandlung und Logging

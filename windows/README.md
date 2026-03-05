@@ -12,7 +12,7 @@ Dieser Bereich enthaelt den neuen Windows-Installationspfad.
 
 ## Teilbereiche
 
-- `bootstrap/`: Build- und Setup-Vorbereitung
+- `bootstrap/`: optionale Build- und Setup-Vorbereitung
 - `installer-ui/`: WPF-Wizard
 - `scripts/`: PowerShell-Installationslogik
 
@@ -22,4 +22,4 @@ Dieser Bereich enthaelt den neuen Windows-Installationspfad.
 2. Wizard-Datenmodell
 3. Release-Bezug
 4. Installationsskript
-5. Setup-Build
+5. optionaler Setup-Build nur bei Verteilungsbedarf

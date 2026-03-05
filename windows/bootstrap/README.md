@@ -1,13 +1,18 @@
 # Windows Bootstrap
 
-Dieser Bereich ist fuer Packaging und Setup zuständig.
+Dieser Bereich ist optional und nur fuer Packaging/Distribution noetig.
 
-## Geplante Aufgaben
+## Wann dieser Bereich benoetigt wird
 
-- WPF-UI publizieren
-- spaeter Setup-EXE erstellen
-- spaeter optional Signierung ergaenzen
+- klassische Setup-EXE fuer Verteilung
+- Startmenue-/Desktop-Verknuepfungen durch Installer
+- Signierung im Release-Prozess
 
-## Startpunkt
+## Standardbetrieb ohne Wrapper
 
-Zuerst wird hier ein einfacher Publish-Workflow fuer die UI benoetigt.
+Der aktuelle empfohlene Weg ist direkt:
+
+1. WPF-UI bauen/starten
+2. `windows/scripts/install.ps1` ueber die UI ausfuehren
+
+Damit vermeiden wir einen zusaetzlichen "Installer fuer den Installer".

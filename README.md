@@ -33,7 +33,6 @@ tenant-installer/
 
 ## Naechste Umsetzungsstufen
 
-1. Wizard-Datenmodell und UI-Fluss definieren
-2. Release-Bezug fuer GitHub-Releases konkretisieren
-3. Windows-Preflight und Installationsskripte implementieren
-4. Packaging und Setup-Wrapper aufbauen
+1. Remote-Datenbank-Testlauf gegen reale Zielumgebung validieren
+2. Fehlerdialoge und Statusmeldungen im Wizard weiter schaerfen
+3. Optionale Packaging-Strecke (Wrapper/Signierung) nur bei Bedarf ergaenzen

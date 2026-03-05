@@ -128,12 +128,21 @@ function Validate-InstallContext {
         [pscustomobject]$Context
     )
 
+    $databasePort = 0
+    $smtpPort = 0
+    $adminMail = $null
+    $fromMail = $null
+
     if ([string]::IsNullOrWhiteSpace($Context.PrimaryDomain)) {
         throw "PrimaryDomain ist erforderlich."
     }
 
     if ([string]::IsNullOrWhiteSpace($Context.AdminEmail)) {
         throw "AdminEmail ist erforderlich."
+    }
+
+    if (-not [System.Net.Mail.MailAddress]::TryCreate([string]$Context.AdminEmail, [ref]$adminMail)) {
+        throw "AdminEmail ist nicht gueltig: $($Context.AdminEmail)"
     }
 
     if ([string]::IsNullOrWhiteSpace($Context.AdminPassword)) {
@@ -164,8 +173,42 @@ function Validate-InstallContext {
         throw "DatabasePassword ist erforderlich."
     }
 
+    if ([string]::IsNullOrWhiteSpace($Context.DatabaseName)) {
+        throw "DatabaseName ist erforderlich."
+    }
+
+    if ([string]::IsNullOrWhiteSpace($Context.DatabaseUser)) {
+        throw "DatabaseUser ist erforderlich."
+    }
+
+    if (-not [int]::TryParse([string]$Context.DatabasePort, [ref]$databasePort) -or $databasePort -lt 1 -or $databasePort -gt 65535) {
+        throw "DatabasePort ist ungueltig. Erwartet wird eine Zahl zwischen 1 und 65535."
+    }
+
+    if (-not $Context.UseLocalDatabase -and [string]::IsNullOrWhiteSpace($Context.DatabaseHost)) {
+        throw "DatabaseHost ist erforderlich, wenn UseLocalDatabase=false ist."
+    }
+
     if ($Context.EnableSmtp -and [string]::IsNullOrWhiteSpace($Context.MailFromAddress)) {
         throw "MailFromAddress ist erforderlich, wenn SMTP aktiviert ist."
+    }
+
+    if ($Context.EnableSmtp) {
+        if ([string]::IsNullOrWhiteSpace($Context.SmtpHost)) {
+            throw "SmtpHost ist erforderlich, wenn SMTP aktiviert ist."
+        }
+
+        if (-not [int]::TryParse([string]$Context.SmtpPort, [ref]$smtpPort) -or $smtpPort -lt 1 -or $smtpPort -gt 65535) {
+            throw "SmtpPort ist ungueltig. Erwartet wird eine Zahl zwischen 1 und 65535."
+        }
+
+        if (-not [System.Net.Mail.MailAddress]::TryCreate([string]$Context.MailFromAddress, [ref]$fromMail)) {
+            throw "MailFromAddress ist nicht gueltig: $($Context.MailFromAddress)"
+        }
+
+        if ([string]$Context.SmtpEncryption -notin @("tls", "ssl", "none")) {
+            throw "SmtpEncryption muss 'tls', 'ssl' oder 'none' sein."
+        }
     }
 
     if ($Context.PhpRuntimeMode -notin @("ScheduledTask", "Nssm")) {
@@ -2156,6 +2199,11 @@ if (-not [string]::IsNullOrWhiteSpace($PhpRuntimeMode)) {
 
 Validate-InstallContext -Context $context
 
+if (-not $context.UseLocalDatabase) {
+    Write-Status "INFO" "Pruefe Remote-Datenbank fruehzeitig"
+    Test-DatabaseConnectivity -Context $context
+}
+
 if (-not $SkipPreflight) {
     Invoke-Preflight -ScriptPath $preflightScript
 }
@@ -2189,7 +2237,11 @@ $composerExecutable = Ensure-ComposerInstalled
 Invoke-ComposerInstall -Context $context -ComposerExecutable $composerExecutable
 Ensure-MariaDbInstalled -Context $context
 Ensure-MariaDbProvisioning -Context $context
-Test-DatabaseConnectivity -Context $context
+
+if ($context.UseLocalDatabase) {
+    Test-DatabaseConnectivity -Context $context
+}
+
 Invoke-LaravelBootstrap -Context $context -PhpExecutable $phpExecutable
 Ensure-PhpFastCgiRunner -Context $context
 $nginxExecutable = Ensure-NginxInstalled

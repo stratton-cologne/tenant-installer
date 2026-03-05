@@ -32,6 +32,16 @@ public sealed class WizardState
     {
         var errors = new List<string>();
 
+        static bool IsValidPort(string value, out int port)
+        {
+            if (!int.TryParse(value, out port))
+            {
+                return false;
+            }
+
+            return port is >= 1 and <= 65535;
+        }
+
         if (string.IsNullOrWhiteSpace(PrimaryDomain))
         {
             errors.Add("Primary Domain ist erforderlich.");
@@ -40,6 +50,10 @@ public sealed class WizardState
         if (string.IsNullOrWhiteSpace(AdminEmail))
         {
             errors.Add("Admin Email ist erforderlich.");
+        }
+        else if (!System.Net.Mail.MailAddress.TryCreate(AdminEmail, out _))
+        {
+            errors.Add("Admin Email ist nicht gueltig.");
         }
 
         if (string.IsNullOrWhiteSpace(AdminPassword))
@@ -65,6 +79,21 @@ public sealed class WizardState
             errors.Add("Datenbank-Passwort ist erforderlich.");
         }
 
+        if (string.IsNullOrWhiteSpace(DatabaseName))
+        {
+            errors.Add("DB Name ist erforderlich.");
+        }
+
+        if (string.IsNullOrWhiteSpace(DatabaseUser))
+        {
+            errors.Add("DB User ist erforderlich.");
+        }
+
+        if (!IsValidPort(DatabasePort, out _))
+        {
+            errors.Add("DB Port muss zwischen 1 und 65535 liegen.");
+        }
+
         if (!UseLocalDatabase)
         {
             if (string.IsNullOrWhiteSpace(DatabaseHost))
@@ -83,6 +112,20 @@ public sealed class WizardState
             if (string.IsNullOrWhiteSpace(MailFromAddress))
             {
                 errors.Add("Bei aktivem SMTP ist eine Mail-From-Adresse erforderlich.");
+            }
+            else if (!System.Net.Mail.MailAddress.TryCreate(MailFromAddress, out _))
+            {
+                errors.Add("Mail-From-Adresse ist nicht gueltig.");
+            }
+
+            if (!IsValidPort(SmtpPort, out _))
+            {
+                errors.Add("SMTP Port muss zwischen 1 und 65535 liegen.");
+            }
+
+            if (SmtpEncryption is not ("tls" or "ssl" or "none"))
+            {
+                errors.Add("SMTP Encryption muss tls, ssl oder none sein.");
             }
         }
 

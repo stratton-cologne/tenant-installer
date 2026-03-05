@@ -718,10 +718,22 @@ function Find-NssmExecutable {
 }
 
 function Find-NginxExecutable {
-    $commandPath = Find-CommandPath -Name "nginx"
+    function Test-NginxExecutableCandidate {
+        param(
+            [string]$CandidatePath
+        )
 
-    if (-not [string]::IsNullOrWhiteSpace($commandPath) -and (Test-Path -LiteralPath $commandPath -PathType Leaf)) {
-        return $commandPath
+        if ([string]::IsNullOrWhiteSpace($CandidatePath)) {
+            return $false
+        }
+
+        if (-not (Test-Path -LiteralPath $CandidatePath -PathType Leaf)) {
+            return $false
+        }
+
+        $candidateRoot = Split-Path -Parent $CandidatePath
+        $mimeTypesPath = Join-Path $candidateRoot "conf\mime.types"
+        return (Test-Path -LiteralPath $mimeTypesPath -PathType Leaf)
     }
 
     $knownPaths = @(
@@ -731,15 +743,12 @@ function Find-NginxExecutable {
     )
 
     foreach ($candidate in $knownPaths) {
-        if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+        if (Test-NginxExecutableCandidate -CandidatePath $candidate) {
             return $candidate
         }
     }
 
-    $packageRoots = @(
-        (Join-Path $env:LOCALAPPDATA "Microsoft\WinGet\Packages"),
-        (Join-Path $env:LOCALAPPDATA "Microsoft\WindowsApps")
-    )
+    $packageRoots = @((Join-Path $env:LOCALAPPDATA "Microsoft\WinGet\Packages"))
 
     foreach ($packageRoot in $packageRoots) {
         if (-not (Test-Path -LiteralPath $packageRoot -PathType Container)) {
@@ -753,9 +762,15 @@ function Find-NginxExecutable {
             } |
             Select-Object -First 1
 
-        if ($null -ne $packageCandidate) {
+        if ($null -ne $packageCandidate -and (Test-NginxExecutableCandidate -CandidatePath $packageCandidate.FullName)) {
             return $packageCandidate.FullName
         }
+    }
+
+    $commandPath = Find-CommandPath -Name "nginx"
+
+    if (Test-NginxExecutableCandidate -CandidatePath $commandPath) {
+        return $commandPath
     }
 
     return ""
@@ -1000,6 +1015,57 @@ function Wait-ForTcpPort {
     }
 
     return $false
+}
+
+function Get-PhpFastCgiProcess {
+    param(
+        [string]$Binding = "127.0.0.1:9000"
+    )
+
+    return Get-CimInstance Win32_Process -Filter "Name = 'php-cgi.exe'" -ErrorAction SilentlyContinue |
+        Where-Object { $_.CommandLine -like "*$Binding*" } |
+        Select-Object -First 1
+}
+
+function Start-PhpFastCgiProcess {
+    param(
+        [string]$PhpCgiExecutable,
+        [string]$Binding = "127.0.0.1:9000"
+    )
+
+    if ([string]::IsNullOrWhiteSpace($PhpCgiExecutable)) {
+        throw "php-cgi.exe wurde nicht gefunden. FastCGI kann nicht gestartet werden."
+    }
+
+    $existing = Get-PhpFastCgiProcess -Binding $Binding
+
+    if ($null -ne $existing) {
+        return
+    }
+
+    $phpDir = Split-Path -Parent $PhpCgiExecutable
+    Start-Process -FilePath $PhpCgiExecutable -ArgumentList @("-b", $Binding) -WorkingDirectory $phpDir -WindowStyle Hidden
+}
+
+function Assert-PhpFastCgiRuntime {
+    param(
+        [string]$HostName = "127.0.0.1",
+        [int]$Port = 9000,
+        [int]$TimeoutSeconds = 15
+    )
+
+    if (Wait-ForTcpPort -HostName $HostName -Port $Port -TimeoutSeconds $TimeoutSeconds) {
+        Write-Status "PASS" "PHP-FastCGI antwortet auf ${HostName}:$Port"
+        return
+    }
+
+    $process = Get-PhpFastCgiProcess -Binding "${HostName}:$Port"
+
+    if ($null -ne $process) {
+        throw "PHP-FastCGI-Prozess wurde gefunden (PID $($process.ProcessId)), aber ${HostName}:$Port ist nicht erreichbar. Bitte php-cgi-Konfiguration pruefen."
+    }
+
+    throw "PHP-FastCGI wurde gestartet, aber ${HostName}:$Port ist nicht erreichbar. Bitte php-cgi-Start pruefen."
 }
 
 function Register-MariaDbService {
@@ -1587,6 +1653,10 @@ function Ensure-PhpFastCgiNssmService {
     & $nssmExecutable set $serviceName Start SERVICE_AUTO_START | Out-Null
 
     Start-Service -Name $serviceName -ErrorAction SilentlyContinue
+    if (-not (Wait-ForTcpPort -HostName "127.0.0.1" -Port 9000 -TimeoutSeconds 5)) {
+        Start-PhpFastCgiProcess -PhpCgiExecutable $phpCgiExecutable -Binding "127.0.0.1:9000"
+    }
+    Assert-PhpFastCgiRuntime
     Write-Status "INFO" "PHP-FastCGI-Service ueber NSSM eingerichtet: $serviceName"
 }
 
@@ -1639,6 +1709,13 @@ if (\$null -eq \$existing) {
         throw "Geplanter Task fuer PHP-FastCGI konnte nicht gestartet werden."
     }
 
+    # Der Task-Start kann zeitlich verzögert sein; falls der Port noch nicht offen ist,
+    # wird php-cgi einmal direkt gestartet.
+    if (-not (Wait-ForTcpPort -HostName "127.0.0.1" -Port 9000 -TimeoutSeconds 5)) {
+        Start-PhpFastCgiProcess -PhpCgiExecutable $phpCgiExecutable -Binding "127.0.0.1:9000"
+    }
+
+    Assert-PhpFastCgiRuntime
     Write-Status "INFO" "PHP-FastCGI-Starttask eingerichtet: $taskName"
 }
 

@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.IO;
+using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
 using System.Windows;
@@ -57,6 +58,39 @@ public partial class MainWindow : Window
         StatusTextBlock.Text = "Konfiguration ist valide.";
     }
 
+    private async void TestDatabaseClicked(object sender, RoutedEventArgs e)
+    {
+        var state = BuildState();
+        var errors = state.Validate();
+
+        if (errors.Length > 0)
+        {
+            MessageBox.Show(string.Join(Environment.NewLine, errors), "Validierung", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        var host = state.UseLocalDatabase ? "127.0.0.1" : state.DatabaseHost.Trim();
+
+        if (!int.TryParse(state.DatabasePort, out var port))
+        {
+            MessageBox.Show("DB Port ist ungueltig.", "DB-Test", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        StatusTextBlock.Text = $"Teste DB-Verbindung zu {host}:{port} ...";
+        var reachable = await TestTcpConnectivityAsync(host, port, 5000);
+
+        if (reachable)
+        {
+            StatusTextBlock.Text = $"DB-Verbindung erreichbar: {host}:{port}";
+            LogTextBox.Text = $"[INFO] DB-Verbindung erfolgreich getestet: {host}:{port}";
+            return;
+        }
+
+        StatusTextBlock.Text = $"DB-Verbindung nicht erreichbar: {host}:{port}";
+        LogTextBox.Text = $"[WARN] DB-Verbindung fehlgeschlagen: {host}:{port}";
+    }
+
     private async void StartInstallClicked(object sender, RoutedEventArgs e)
     {
         var state = BuildState();
@@ -95,18 +129,12 @@ public partial class MainWindow : Window
 
         var gitHubToken = GitHubTokenBox.Password.Trim();
 
-        if (!string.IsNullOrWhiteSpace(gitHubToken))
-        {
-            arguments.Append(" -GitHubToken ");
-            arguments.Append('"').Append(gitHubToken.Replace("\"", "\\\"")).Append('"');
-        }
-
         StatusTextBlock.Text = "Installationsskript laeuft...";
         LogTextBox.Clear();
 
         try
         {
-            await RunProcessAsync("powershell.exe", arguments.ToString());
+            await RunProcessAsync("powershell.exe", arguments.ToString(), gitHubToken);
             StatusTextBlock.Text = DryRunCheckBox.IsChecked == true
                 ? "Dry-run abgeschlossen. Es wurden keine Aenderungen geschrieben."
                 : "Installationsskript abgeschlossen. Runtime, Datenbank und Nginx wurden eingerichtet. Details stehen im Log.";
@@ -173,7 +201,7 @@ public partial class MainWindow : Window
         return null;
     }
 
-    private async Task RunProcessAsync(string fileName, string arguments)
+    private async Task RunProcessAsync(string fileName, string arguments, string gitHubToken)
     {
         var startInfo = new ProcessStartInfo
         {
@@ -184,6 +212,11 @@ public partial class MainWindow : Window
             RedirectStandardError = true,
             CreateNoWindow = true
         };
+
+        if (!string.IsNullOrWhiteSpace(gitHubToken))
+        {
+            startInfo.Environment["GITHUB_TOKEN"] = gitHubToken;
+        }
 
         using var process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
         var output = new StringBuilder();
@@ -244,6 +277,22 @@ public partial class MainWindow : Window
         }
         catch
         {
+        }
+    }
+
+    private static async Task<bool> TestTcpConnectivityAsync(string host, int port, int timeoutMs)
+    {
+        using var client = new TcpClient();
+        using var cts = new CancellationTokenSource(timeoutMs);
+
+        try
+        {
+            await client.ConnectAsync(host, port, cts.Token);
+            return true;
+        }
+        catch
+        {
+            return false;
         }
     }
 }

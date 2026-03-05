@@ -175,8 +175,12 @@
                         <TextBlock Grid.Row="1" Grid.Column="0" Margin="0,6,12,6" VerticalAlignment="Center" Text="GitHub Token (optional)" />
                         <PasswordBox x:Name="GitHubTokenBox" Grid.Row="1" Grid.Column="1" Margin="0,4,0,4" />
 
-                        <TextBlock Grid.Row="2" Grid.Column="0" Margin="0,6,12,6" VerticalAlignment="Center" Text="Dry Run" />
-                        <CheckBox x:Name="DryRunCheckBox" Grid.Row="2" Grid.Column="1" Margin="0,6,0,6" />
+                        <TextBlock Grid.Row="2" Grid.Column="0" Margin="0,6,12,6" VerticalAlignment="Center" Text="Install-Optionen" />
+                        <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal" Margin="0,6,0,6">
+                            <CheckBox x:Name="DryRunCheckBox" Margin="0,0,18,0" Content="Dry Run" />
+                            <CheckBox x:Name="SkipPreflightCheckBox" Margin="0,0,18,0" Content="Preflight ueberspringen" />
+                            <CheckBox x:Name="IncludePrereleaseCheckBox" Content="Prereleases zulassen" />
+                        </StackPanel>
 
                         <StackPanel Grid.Row="3" Grid.Column="1" Orientation="Horizontal" Margin="0,12,0,0">
                             <Button Width="190" Height="38" Click="RunPreflightClicked" Content="Preflight ausfuehren" />

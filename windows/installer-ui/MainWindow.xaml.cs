@@ -127,6 +127,16 @@ public partial class MainWindow : Window
             arguments.Append(" -DryRun");
         }
 
+        if (SkipPreflightCheckBox.IsChecked == true)
+        {
+            arguments.Append(" -SkipPreflight");
+        }
+
+        if (IncludePrereleaseCheckBox.IsChecked == true)
+        {
+            arguments.Append(" -IncludePrerelease");
+        }
+
         var gitHubToken = GitHubTokenBox.Password.Trim();
 
         StatusTextBlock.Text = "Installationsskript laeuft...";

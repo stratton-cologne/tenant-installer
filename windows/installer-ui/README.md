@@ -22,7 +22,7 @@ Der Wizard soll folgende Bereiche abfragen:
 ## Aktueller Stand
 
 - WPF-Projekt `TenantInstaller.Ui.csproj` vorhanden
-- Formular fuer Basisdaten, Datenbank, SMTP, optionale Felder und PHP-Runtime-Modus
+- Formular fuer Basisdaten, SSL-Zertifikatspfade, Datenbank, SMTP, optionale Felder und PHP-Runtime-Modus
 - Validierung ueber `WizardState`
 - Start von `windows/scripts/install.ps1` inklusive JSON-Konfigurationsdatei und Live-Log
 - UI-Hinweis auf den verifizierten Installpfad inklusive Runtime-Setup und HTTP-Health-Check

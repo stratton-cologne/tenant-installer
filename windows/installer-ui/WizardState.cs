@@ -4,6 +4,8 @@ public sealed class WizardState
 {
     public string PrimaryDomain { get; set; } = string.Empty;
     public bool UseSsl { get; set; } = true;
+    public string SslCertificatePath { get; set; } = string.Empty;
+    public string SslCertificateKeyPath { get; set; } = string.Empty;
     public string AdminEmail { get; set; } = string.Empty;
     public string AdminPassword { get; set; } = string.Empty;
 
@@ -43,6 +45,19 @@ public sealed class WizardState
         if (string.IsNullOrWhiteSpace(AdminPassword))
         {
             errors.Add("Admin Passwort ist erforderlich.");
+        }
+
+        if (UseSsl)
+        {
+            if (string.IsNullOrWhiteSpace(SslCertificatePath))
+            {
+                errors.Add("Bei aktivem SSL ist ein Zertifikatspfad erforderlich.");
+            }
+
+            if (string.IsNullOrWhiteSpace(SslCertificateKeyPath))
+            {
+                errors.Add("Bei aktivem SSL ist ein Zertifikat-Key-Pfad erforderlich.");
+            }
         }
 
         if (string.IsNullOrWhiteSpace(DatabasePassword))

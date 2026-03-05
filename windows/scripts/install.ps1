@@ -98,6 +98,8 @@ function ConvertTo-InstallContext {
         InstallRoot = $installRoot
         PrimaryDomain = Get-ConfigString -Config $Config -Name "PrimaryDomain"
         UseSsl = Get-ConfigBool -Config $Config -Name "UseSsl" -Default $true
+        SslCertificatePath = Get-ConfigString -Config $Config -Name "SslCertificatePath"
+        SslCertificateKeyPath = Get-ConfigString -Config $Config -Name "SslCertificateKeyPath"
         AdminEmail = Get-ConfigString -Config $Config -Name "AdminEmail"
         AdminPassword = Get-ConfigString -Config $Config -Name "AdminPassword"
         UseLocalDatabase = Get-ConfigBool -Config $Config -Name "UseLocalDatabase" -Default $false
@@ -136,6 +138,26 @@ function Validate-InstallContext {
 
     if ([string]::IsNullOrWhiteSpace($Context.AdminPassword)) {
         throw "AdminPassword ist erforderlich."
+    }
+
+    if ($Context.UseSsl) {
+        if ([string]::IsNullOrWhiteSpace($Context.SslCertificatePath)) {
+            throw "SslCertificatePath ist erforderlich, wenn UseSsl=true ist."
+        }
+
+        if ([string]::IsNullOrWhiteSpace($Context.SslCertificateKeyPath)) {
+            throw "SslCertificateKeyPath ist erforderlich, wenn UseSsl=true ist."
+        }
+
+        if (-not $DryRun) {
+            if (-not (Test-Path -LiteralPath $Context.SslCertificatePath -PathType Leaf)) {
+                throw "SSL-Zertifikat nicht gefunden: $($Context.SslCertificatePath)"
+            }
+
+            if (-not (Test-Path -LiteralPath $Context.SslCertificateKeyPath -PathType Leaf)) {
+                throw "SSL-Zertifikat-Key nicht gefunden: $($Context.SslCertificateKeyPath)"
+            }
+        }
     }
 
     if ([string]::IsNullOrWhiteSpace($Context.DatabasePassword)) {
@@ -1862,10 +1884,56 @@ function Set-NginxConfiguration {
     $confPath = Join-Path $nginxRoot "conf\nginx.conf"
     $appRoot = Get-ApplicationRoot -BackendTarget (Join-Path $Context.InstallRoot "backend")
     $publicRoot = Convert-ToNginxPath -Path (Join-Path $appRoot "public")
-    $sslNote = ""
+    $serverBlock = @"
+    server {
+        listen       80;
+        server_name  $($Context.PrimaryDomain);
+        root   $publicRoot;
+        index  index.php index.html;
+
+        location / {
+            try_files `$uri `$uri/ /index.php?`$query_string;
+        }
+
+        location ~ \.php$ {
+            fastcgi_pass   127.0.0.1:9000;
+            fastcgi_index  index.php;
+            include        fastcgi.conf;
+            fastcgi_param  SCRIPT_FILENAME  `$document_root`$fastcgi_script_name;
+        }
+    }
+"@
 
     if ($Context.UseSsl) {
-        $sslNote = "        # SSL wurde im Wizard angefordert. Zertifikat und 443-Listener muessen im naechsten Schritt ergaenzt werden.`r`n"
+        $sslCertificatePath = Convert-ToNginxPath -Path $Context.SslCertificatePath
+        $sslCertificateKeyPath = Convert-ToNginxPath -Path $Context.SslCertificateKeyPath
+        $serverBlock = @"
+    server {
+        listen       80;
+        server_name  $($Context.PrimaryDomain);
+        return 301 https://`$host`$request_uri;
+    }
+
+    server {
+        listen              443 ssl;
+        server_name         $($Context.PrimaryDomain);
+        ssl_certificate     $sslCertificatePath;
+        ssl_certificate_key $sslCertificateKeyPath;
+        root   $publicRoot;
+        index  index.php index.html;
+
+        location / {
+            try_files `$uri `$uri/ /index.php?`$query_string;
+        }
+
+        location ~ \.php$ {
+            fastcgi_pass   127.0.0.1:9000;
+            fastcgi_index  index.php;
+            include        fastcgi.conf;
+            fastcgi_param  SCRIPT_FILENAME  `$document_root`$fastcgi_script_name;
+        }
+    }
+"@
     }
 
     $configContent = @"
@@ -1880,24 +1948,7 @@ http {
     default_type  application/octet-stream;
     sendfile      on;
     keepalive_timeout  65;
-
-    server {
-        listen       80;
-        server_name  $($Context.PrimaryDomain);
-$sslNote        root   $publicRoot;
-        index  index.php index.html;
-
-        location / {
-            try_files `$uri `$uri/ /index.php?`$query_string;
-        }
-
-        location ~ \.php$ {
-            fastcgi_pass   127.0.0.1:9000;
-            fastcgi_index  index.php;
-            include        fastcgi.conf;
-            fastcgi_param  SCRIPT_FILENAME  `$document_root`$fastcgi_script_name;
-        }
-    }
+$serverBlock
 }
 "@
 
@@ -1908,10 +1959,6 @@ $sslNote        root   $publicRoot;
 
     Write-FileUtf8NoBom -Path $confPath -Content $configContent
     Write-Status "INFO" "Nginx-Konfiguration geschrieben: $confPath"
-
-    if ($Context.UseSsl) {
-        Write-Status "WARN" "SSL ist angefordert, aber Zertifikat und 443-Listener sind noch nicht automatisiert konfiguriert."
-    }
 }
 
 function Start-OrReloadNginx {
@@ -2052,6 +2099,14 @@ function Write-InstallSummary {
 
     $summaryRoot = Join-Path $Context.InstallRoot "installer"
     $summaryPath = Join-Path $summaryRoot "install-summary.json"
+    $nextSteps = @(
+        "Weitere Anwendungsgeheimnisse und produktive Queue-/Cron-Prozesse konfigurieren",
+        "Anwendung nach Erstinstallation funktional pruefen"
+    )
+
+    if (-not $Context.UseSsl) {
+        $nextSteps += "Fuer produktiven HTTPS-Betrieb SSL aktivieren und Zertifikate hinterlegen"
+    }
 
     $summary = [ordered]@{
         installed_at_utc = [DateTime]::UtcNow.ToString("o")
@@ -2063,11 +2118,7 @@ function Write-InstallSummary {
         backend_release_dir = $BackendReleaseDir
         frontend_release_dir = $FrontendReleaseDir
         fetched_release_root = $TargetOutputRoot
-        next_steps = @(
-            "Weitere Anwendungsgeheimnisse und produktive Queue-/Cron-Prozesse konfigurieren",
-            "SSL-Zertifikate fuer produktive HTTPS-Nutzung hinterlegen",
-            "Anwendung nach Erstinstallation funktional pruefen"
-        )
+        next_steps = $nextSteps
     }
 
     if ($DryRun) {

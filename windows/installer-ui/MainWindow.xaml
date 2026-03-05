@@ -34,19 +34,27 @@
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
                         <TextBlock Grid.Row="0" Grid.Column="0" Margin="0,6,12,6" VerticalAlignment="Center" Text="Primary Domain" />
                         <TextBox x:Name="PrimaryDomainTextBox" Grid.Row="0" Grid.Column="1" Margin="0,4,0,4" />
 
                         <TextBlock Grid.Row="1" Grid.Column="0" Margin="0,6,12,6" VerticalAlignment="Center" Text="SSL aktiv" />
-                        <CheckBox x:Name="UseSslCheckBox" Grid.Row="1" Grid.Column="1" Margin="0,6,0,6" IsChecked="True" />
+                        <CheckBox x:Name="UseSslCheckBox" Grid.Row="1" Grid.Column="1" Margin="0,6,0,6" IsChecked="True" Checked="UseSslChanged" Unchecked="UseSslChanged" />
 
-                        <TextBlock Grid.Row="2" Grid.Column="0" Margin="0,6,12,6" VerticalAlignment="Center" Text="Admin Email" />
-                        <TextBox x:Name="AdminEmailTextBox" Grid.Row="2" Grid.Column="1" Margin="0,4,0,4" />
+                        <TextBlock Grid.Row="2" Grid.Column="0" Margin="0,6,12,6" VerticalAlignment="Center" Text="SSL Zertifikat" />
+                        <TextBox x:Name="SslCertificatePathTextBox" Grid.Row="2" Grid.Column="1" Margin="0,4,0,4" />
 
-                        <TextBlock Grid.Row="3" Grid.Column="0" Margin="0,6,12,6" VerticalAlignment="Center" Text="Admin Passwort" />
-                        <PasswordBox x:Name="AdminPasswordBox" Grid.Row="3" Grid.Column="1" Margin="0,4,0,4" />
+                        <TextBlock Grid.Row="3" Grid.Column="0" Margin="0,6,12,6" VerticalAlignment="Center" Text="SSL Zertifikat-Key" />
+                        <TextBox x:Name="SslCertificateKeyPathTextBox" Grid.Row="3" Grid.Column="1" Margin="0,4,0,4" />
+
+                        <TextBlock Grid.Row="4" Grid.Column="0" Margin="0,6,12,6" VerticalAlignment="Center" Text="Admin Email" />
+                        <TextBox x:Name="AdminEmailTextBox" Grid.Row="4" Grid.Column="1" Margin="0,4,0,4" />
+
+                        <TextBlock Grid.Row="5" Grid.Column="0" Margin="0,6,12,6" VerticalAlignment="Center" Text="Admin Passwort" />
+                        <PasswordBox x:Name="AdminPasswordBox" Grid.Row="5" Grid.Column="1" Margin="0,4,0,4" />
                     </Grid>
                 </GroupBox>
 

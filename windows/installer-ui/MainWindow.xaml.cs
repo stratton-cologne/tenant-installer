@@ -12,6 +12,16 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        UseSslChanged(this, new RoutedEventArgs());
+        UseLocalDatabaseChanged(this, new RoutedEventArgs());
+        EnableSmtpChanged(this, new RoutedEventArgs());
+    }
+
+    private void UseSslChanged(object sender, RoutedEventArgs e)
+    {
+        var useSsl = UseSslCheckBox.IsChecked == true;
+        SslCertificatePathTextBox.IsEnabled = useSsl;
+        SslCertificateKeyPathTextBox.IsEnabled = useSsl;
     }
 
     private void UseLocalDatabaseChanged(object sender, RoutedEventArgs e)
@@ -121,6 +131,8 @@ public partial class MainWindow : Window
         {
             PrimaryDomain = PrimaryDomainTextBox.Text.Trim(),
             UseSsl = UseSslCheckBox.IsChecked == true,
+            SslCertificatePath = SslCertificatePathTextBox.Text.Trim(),
+            SslCertificateKeyPath = SslCertificateKeyPathTextBox.Text.Trim(),
             AdminEmail = AdminEmailTextBox.Text.Trim(),
             AdminPassword = AdminPasswordBox.Password,
             UseLocalDatabase = UseLocalDatabaseCheckBox.IsChecked == true,

@@ -2,3 +2,4 @@ archive/
 **/bin/
 **/obj/
 windows/output/
+windows/test-install-config-remote.json

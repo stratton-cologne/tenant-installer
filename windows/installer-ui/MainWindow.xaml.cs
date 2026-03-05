@@ -140,6 +140,7 @@ public partial class MainWindow : Window
         var configPath = Path.Combine(Path.GetTempPath(), $"tenant-installer-config-{Guid.NewGuid():N}.json");
         var json = JsonSerializer.Serialize(state, new JsonSerializerOptions { WriteIndented = true });
         File.WriteAllText(configPath, json, Encoding.UTF8);
+        var uiLogPath = Path.Combine(state.InstallRoot, "installer", "ui-run.log");
 
         var arguments = new StringBuilder();
         arguments.Append("-NoProfile -ExecutionPolicy Bypass -File ");
@@ -172,7 +173,7 @@ public partial class MainWindow : Window
 
         try
         {
-            await RunProcessAsync("powershell.exe", arguments.ToString(), gitHubToken);
+            await RunProcessAsync("powershell.exe", arguments.ToString(), gitHubToken, uiLogPath);
             StatusTextBlock.Text = DryRunCheckBox.IsChecked == true
                 ? "Dry-run abgeschlossen. Es wurden keine Aenderungen geschrieben."
                 : "Installationsskript abgeschlossen. Runtime, Datenbank und Nginx wurden eingerichtet. Details stehen im Log.";
@@ -232,6 +233,7 @@ public partial class MainWindow : Window
 
         return new WizardState
         {
+            InstallRoot = InstallRootTextBox.Text.Trim(),
             PrimaryDomain = PrimaryDomainTextBox.Text.Trim(),
             UseSsl = UseSslCheckBox.IsChecked == true,
             SslCertificatePath = SslCertificatePathTextBox.Text.Trim(),
@@ -272,6 +274,7 @@ public partial class MainWindow : Window
         return new
         {
             state.PrimaryDomain,
+            state.InstallRoot,
             state.UseSsl,
             state.SslCertificatePath,
             state.SslCertificateKeyPath,
@@ -315,7 +318,7 @@ public partial class MainWindow : Window
         return null;
     }
 
-    private async Task RunProcessAsync(string fileName, string arguments, string gitHubToken)
+    private async Task RunProcessAsync(string fileName, string arguments, string gitHubToken, string? runLogPath = null)
     {
         var startInfo = new ProcessStartInfo
         {
@@ -374,6 +377,11 @@ public partial class MainWindow : Window
         process.BeginErrorReadLine();
         await process.WaitForExitAsync();
 
+        if (!string.IsNullOrWhiteSpace(runLogPath))
+        {
+            WriteRunLog(runLogPath, fileName, arguments, output.ToString(), process.ExitCode);
+        }
+
         if (process.ExitCode != 0)
         {
             throw new InvalidOperationException($"Das Installationsskript ist mit Exit-Code {process.ExitCode} beendet worden.");
@@ -388,6 +396,30 @@ public partial class MainWindow : Window
             {
                 File.Delete(path);
             }
+        }
+        catch
+        {
+        }
+    }
+
+    private static void WriteRunLog(string runLogPath, string fileName, string arguments, string output, int exitCode)
+    {
+        try
+        {
+            var logDirectory = Path.GetDirectoryName(runLogPath);
+
+            if (!string.IsNullOrWhiteSpace(logDirectory))
+            {
+                Directory.CreateDirectory(logDirectory);
+            }
+
+            var entry = new StringBuilder();
+            entry.AppendLine($"=== UI run {DateTime.UtcNow:O} ===");
+            entry.AppendLine($"command: {fileName} {arguments}");
+            entry.AppendLine($"exit_code: {exitCode}");
+            entry.AppendLine(output);
+            entry.AppendLine();
+            File.AppendAllText(runLogPath, entry.ToString(), Encoding.UTF8);
         }
         catch
         {

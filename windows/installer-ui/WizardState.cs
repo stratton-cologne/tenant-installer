@@ -2,6 +2,7 @@ namespace TenantInstaller.Ui;
 
 public sealed class WizardState
 {
+    public string InstallRoot { get; set; } = @"C:\TenantPlatform";
     public string PrimaryDomain { get; set; } = string.Empty;
     public bool UseSsl { get; set; } = true;
     public string SslCertificatePath { get; set; } = string.Empty;
@@ -40,6 +41,11 @@ public sealed class WizardState
             }
 
             return port is >= 1 and <= 65535;
+        }
+
+        if (string.IsNullOrWhiteSpace(InstallRoot))
+        {
+            errors.Add("InstallRoot ist erforderlich.");
         }
 
         if (string.IsNullOrWhiteSpace(PrimaryDomain))

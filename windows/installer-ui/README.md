@@ -30,6 +30,7 @@ Der Wizard soll folgende Bereiche abfragen:
 - steuerbare Install-Optionen im Wizard: `Dry Run`, `Preflight ueberspringen`, `Prereleases zulassen`
 - waehrend laufender Aktionen werden Start-Buttons gesperrt, um parallele Prozesse zu vermeiden
 - Konfigurationsvorschau redaktiert Geheimnisse (Passwoerter/Lizenzkeys) statt Klartext
+- jeder UI-Installlauf schreibt ein Support-Log nach `<InstallRoot>\installer\ui-run.log`
 - GitHub-Token wird beim Start nur als Prozess-Umgebungsvariable (`GITHUB_TOKEN`) uebergeben, nicht als sichtbares CLI-Argument
 - UI-Hinweis auf den verifizierten Installpfad inklusive Runtime-Setup und HTTP-Health-Check
 

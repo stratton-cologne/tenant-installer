@@ -1,0 +1,23 @@
+{
+  "InstallRoot": "C:\\TenantPlatform-RemoteTest",
+  "PrimaryDomain": "tenant-remote-test.local",
+  "UseSsl": false,
+  "AdminEmail": "admin@example.test",
+  "AdminPassword": "TestPassword123!",
+  "UseLocalDatabase": false,
+  "DatabaseHost": "REPLACE_WITH_REMOTE_DB_HOST",
+  "DatabasePort": "3306",
+  "DatabaseName": "tenant_platform",
+  "DatabaseUser": "tenant_user",
+  "DatabasePassword": "REPLACE_WITH_REMOTE_DB_PASSWORD",
+  "EnableSmtp": false,
+  "SmtpHost": "",
+  "SmtpPort": "587",
+  "SmtpUser": "",
+  "SmtpPassword": "",
+  "SmtpEncryption": "tls",
+  "MailFromAddress": "",
+  "TenantId": "",
+  "LicenseKeys": "",
+  "PhpRuntimeMode": "ScheduledTask"
+}

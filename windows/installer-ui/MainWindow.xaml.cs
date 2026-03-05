@@ -61,7 +61,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        var json = JsonSerializer.Serialize(state, new JsonSerializerOptions { WriteIndented = true });
+        var json = JsonSerializer.Serialize(BuildPreviewState(state), new JsonSerializerOptions { WriteIndented = true });
         LogTextBox.Text = json;
         StatusTextBlock.Text = "Konfiguration ist valide.";
     }
@@ -254,6 +254,45 @@ public partial class MainWindow : Window
             TenantId = TenantIdTextBox.Text.Trim(),
             LicenseKeys = LicenseKeysTextBox.Text.Trim(),
             PhpRuntimeMode = runtimeMode
+        };
+    }
+
+    private static object BuildPreviewState(WizardState state)
+    {
+        static string MaskSecret(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return string.Empty;
+            }
+
+            return "********";
+        }
+
+        return new
+        {
+            state.PrimaryDomain,
+            state.UseSsl,
+            state.SslCertificatePath,
+            state.SslCertificateKeyPath,
+            state.AdminEmail,
+            AdminPassword = MaskSecret(state.AdminPassword),
+            state.UseLocalDatabase,
+            state.DatabaseHost,
+            state.DatabasePort,
+            state.DatabaseName,
+            state.DatabaseUser,
+            DatabasePassword = MaskSecret(state.DatabasePassword),
+            state.EnableSmtp,
+            state.SmtpHost,
+            state.SmtpPort,
+            state.SmtpUser,
+            SmtpPassword = MaskSecret(state.SmtpPassword),
+            state.SmtpEncryption,
+            state.MailFromAddress,
+            state.TenantId,
+            LicenseKeys = MaskSecret(state.LicenseKeys),
+            state.PhpRuntimeMode
         };
     }
 

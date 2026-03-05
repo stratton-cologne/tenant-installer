@@ -2101,58 +2101,97 @@ function Invoke-PostInstallHealthCheck {
         [pscustomobject]$Context
     )
 
-    $targetUrl = "http://127.0.0.1/"
+    function Invoke-SingleHealthCheck {
+        param(
+            [string]$TargetUrl,
+            [string]$Label,
+            [bool]$IgnoreCertificateErrors
+        )
 
-    if ($DryRun) {
-        Write-Status "INFO" "Dry-run: wuerde HTTP-Health-Check gegen $targetUrl mit Host '$($Context.PrimaryDomain)' ausfuehren"
-        return
-    }
+        $previousValidationCallback = $null
 
-    try {
-        $request = [System.Net.HttpWebRequest]::Create($targetUrl)
-        $request.Method = "GET"
-        $request.Timeout = 5000
-        $request.ReadWriteTimeout = 5000
-        $request.Host = $Context.PrimaryDomain
-        $request.AllowAutoRedirect = $false
+        if ($IgnoreCertificateErrors) {
+            $previousValidationCallback = [System.Net.ServicePointManager]::ServerCertificateValidationCallback
+            [System.Net.ServicePointManager]::ServerCertificateValidationCallback = { $true }
+        }
 
-        $response = [System.Net.HttpWebResponse]$request.GetResponse()
         try {
-            $statusCode = [int]$response.StatusCode
+            $request = [System.Net.HttpWebRequest]::Create($TargetUrl)
+            $request.Method = "GET"
+            $request.Timeout = 5000
+            $request.ReadWriteTimeout = 5000
+            $request.Host = $Context.PrimaryDomain
+            $request.AllowAutoRedirect = $false
 
-            if ($statusCode -ge 200 -and $statusCode -lt 500) {
-                Write-Status "INFO" "HTTP-Health-Check erfolgreich: $targetUrl (Host: $($Context.PrimaryDomain)) -> $statusCode"
-                return
-            }
-
-            Write-Status "WARN" "HTTP-Health-Check lieferte unerwarteten Status: $statusCode"
-        }
-        finally {
-            $response.Dispose()
-        }
-    }
-    catch [System.Net.WebException] {
-        $webException = $_.Exception
-
-        if ($null -ne $webException.Response) {
-            $response = [System.Net.HttpWebResponse]$webException.Response
+            $response = [System.Net.HttpWebResponse]$request.GetResponse()
             try {
                 $statusCode = [int]$response.StatusCode
 
                 if ($statusCode -ge 200 -and $statusCode -lt 500) {
-                    Write-Status "INFO" "HTTP-Health-Check erfolgreich: $targetUrl (Host: $($Context.PrimaryDomain)) -> $statusCode"
+                    Write-Status "INFO" "$Label-Health-Check erfolgreich: $TargetUrl (Host: $($Context.PrimaryDomain)) -> $statusCode"
                     return
                 }
 
-                Write-Status "WARN" "HTTP-Health-Check lieferte Fehlerstatus: $statusCode"
-                return
+                Write-Status "WARN" "$Label-Health-Check lieferte unerwarteten Status: $statusCode"
             }
             finally {
                 $response.Dispose()
             }
         }
+        catch [System.Net.WebException] {
+            $webException = $_.Exception
 
-        Write-Status "WARN" "HTTP-Health-Check fehlgeschlagen: $($webException.Message)"
+            if ($null -ne $webException.Response) {
+                $response = [System.Net.HttpWebResponse]$webException.Response
+                try {
+                    $statusCode = [int]$response.StatusCode
+
+                    if ($statusCode -ge 200 -and $statusCode -lt 500) {
+                        Write-Status "INFO" "$Label-Health-Check erfolgreich: $TargetUrl (Host: $($Context.PrimaryDomain)) -> $statusCode"
+                        return
+                    }
+
+                    Write-Status "WARN" "$Label-Health-Check lieferte Fehlerstatus: $statusCode"
+                    return
+                }
+                finally {
+                    $response.Dispose()
+                }
+            }
+
+            Write-Status "WARN" "$Label-Health-Check fehlgeschlagen: $($webException.Message)"
+        }
+        finally {
+            if ($IgnoreCertificateErrors) {
+                [System.Net.ServicePointManager]::ServerCertificateValidationCallback = $previousValidationCallback
+            }
+        }
+    }
+
+    $healthTargets = @(
+        [pscustomobject]@{
+            Url = "http://127.0.0.1/"
+            Label = "HTTP"
+            IgnoreCertificateErrors = $false
+        }
+    )
+
+    if ($Context.UseSsl) {
+        $healthTargets += [pscustomobject]@{
+            Url = "https://127.0.0.1/"
+            Label = "HTTPS"
+            IgnoreCertificateErrors = $true
+        }
+    }
+
+    if ($DryRun) {
+        $targets = ($healthTargets | ForEach-Object { $_.Url }) -join ", "
+        Write-Status "INFO" "Dry-run: wuerde Health-Checks gegen [$targets] mit Host '$($Context.PrimaryDomain)' ausfuehren"
+        return
+    }
+
+    foreach ($target in $healthTargets) {
+        Invoke-SingleHealthCheck -TargetUrl $target.Url -Label $target.Label -IgnoreCertificateErrors ([bool]$target.IgnoreCertificateErrors)
     }
 }
 
